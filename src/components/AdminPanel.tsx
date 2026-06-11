@@ -288,12 +288,33 @@ export default function AdminPanel({ mode }: { mode?: "quiz" | "approvals" }) {
       });
 
       if (!response.ok) {
-        const errData = await response.json();
-        const detailMsg = errData.details ? `: ${errData.details}` : "";
-        throw new Error(`${errData.error || "เกิดข้อผิดพลาดในการเรียกเซิร์ฟเวอร์"}${detailMsg}`);
+        let errMessage = "เกิดข้อผิดพลาดในการเรียกเซิร์ฟเวอร์";
+        try {
+          const responseText = await response.text();
+          try {
+            const errData = JSON.parse(responseText);
+            errMessage = errData.error || errMessage;
+            if (errData.details) {
+              errMessage += `: ${errData.details}`;
+            }
+          } catch {
+            // Not JSON
+            errMessage = `เซิร์ฟเวอร์ตอบกลับด้วย HTML/รหัสผิดพลาด (${response.status}): ${responseText.substring(0, 100)}...`;
+          }
+        } catch {
+          errMessage = `เซิร์ฟเวอร์ตอบกลับผิดพลาดระดับเครือข่าย สถานะ: ${response.status}`;
+        }
+        throw new Error(errMessage);
       }
 
-      const data = await response.json();
+      let data: any;
+      const responseText = await response.text();
+      try {
+        data = JSON.parse(responseText);
+      } catch (jsonErr) {
+        throw new Error(`คำตอบจากเซิร์ฟเวอร์ไม่ใช่ JSON ที่ถูกต้อง: ${responseText.substring(0, 100)}...`);
+      }
+
       if (data.questions && Array.isArray(data.questions)) {
         setQuestionsList([...questionsList, ...data.questions]);
         setRawText("");
