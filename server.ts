@@ -10,16 +10,26 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// Initialize server-side Gemini AI safely. 
-// Uses user's securely injected GEMINI_API_KEY from environment variables.
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
+// Initialize server-side Gemini AI safely with lazy initialization to prevent crashes when the API key is missing.
+let aiInstance: GoogleGenAI | null = null;
+
+function getGeminiClient(): GoogleGenAI {
+  if (!aiInstance) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("ระบบไม่พบรหัสคีย์เพื่อใช้งาน AI (Missing GEMINI_API_KEY)");
     }
+    aiInstance = new GoogleGenAI({
+      apiKey: apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
   }
-});
+  return aiInstance;
+}
 
 // JSON parsing schema for Gemini AI exam question extractor
 const questionSchema = {
@@ -120,6 +130,7 @@ ${rawText}`;
             console.log(`[Gemini Info] Retrying model ${modelName} with simplified, non-schema config to ensure maximum compatibility`);
           }
 
+          const ai = getGeminiClient();
           const response = await ai.models.generateContent({
             model: modelName,
             contents: prompt,
