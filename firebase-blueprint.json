@@ -1,0 +1,289 @@
+{
+  "entities": {
+    "Category": {
+      "title": "Category",
+      "description": "An exam category or subject.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the category"
+        },
+        "description": {
+          "type": "string",
+          "description": "Short description of the category"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "User ID of the creator"
+        }
+      },
+      "required": ["name", "description", "createdAt", "createdBy"]
+    },
+    "Quiz": {
+      "title": "Quiz",
+      "description": "A set of exam questions belonging to a category.",
+      "type": "object",
+      "properties": {
+        "categoryId": {
+          "type": "string",
+          "description": "Reference to the Category ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the quiz"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the quiz"
+        },
+        "timeLimit": {
+          "type": "integer",
+          "description": "Time limit in minutes"
+        },
+        "questionsCount": {
+          "type": "integer",
+          "description": "Number of questions in this quiz"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "User ID of the creator"
+        }
+      },
+      "required": ["categoryId", "title", "description", "timeLimit", "questionsCount", "createdAt", "createdBy"]
+    },
+    "Question": {
+      "title": "Question",
+      "description": "An exam multiple-choice question.",
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "The question text"
+        },
+        "options": {
+          "type": "array",
+          "description": "Available choices"
+        },
+        "correctIndex": {
+          "type": "integer",
+          "description": "The index of the correct option (0-based)"
+        },
+        "explanation": {
+          "type": "string",
+          "description": "Explanation of the correct answer"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["text", "options", "correctIndex", "createdAt"]
+    },
+    "Attempt": {
+      "title": "Attempt",
+      "description": "An exam attempt made by a user.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "User ID who took the exam"
+        },
+        "userEmail": {
+          "type": "string",
+          "description": "User email address"
+        },
+        "userName": {
+          "type": "string",
+          "description": "User display name"
+        },
+        "quizId": {
+          "type": "string",
+          "description": "ID of the quiz taken"
+        },
+        "quizTitle": {
+          "type": "string",
+          "description": "Title of the quiz taken"
+        },
+        "score": {
+          "type": "integer",
+          "description": "Score achieved (correct answers count)"
+        },
+        "totalQuestions": {
+          "type": "integer",
+          "description": "Total questions in the quiz at attempt time"
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Completion timestamp"
+        }
+      },
+      "required": ["userId", "userEmail", "userName", "quizId", "quizTitle", "score", "totalQuestions", "completedAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "A user profile stored dynamically upon authenticating.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Unique identifier for the user"
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name of the user"
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "Avatar image url"
+        },
+        "lastSeenAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last seen timestamp"
+        },
+        "status": {
+          "type": "string",
+          "description": "Current visual status of the user"
+        },
+        "approved": {
+          "type": "boolean",
+          "description": "Approval status by administrator"
+        },
+        "plainPassword": {
+          "type": "string",
+          "description": "Clear text user password for administrator reference"
+        }
+      },
+      "required": ["uid", "email", "displayName", "photoURL", "lastSeenAt", "status"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "A premium registration payment request with slip evidence details.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Applicant full name"
+        },
+        "email": {
+          "type": "string",
+          "description": "Applicant email address"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Applicant phone number"
+        },
+        "slipDataURL": {
+          "type": "string",
+          "description": "Uploaded slip image base64 data"
+        },
+        "status": {
+          "type": "string",
+          "description": "Verification status (pending, approved, rejected)"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Upload timestamp"
+        }
+      },
+      "required": ["name", "email", "phone", "slipDataURL", "status", "createdAt"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Public system announcements",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdBy": {
+          "type": "string"
+        }
+      },
+      "required": ["title", "content", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "User specific or broadcast notifications",
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "readBy": {
+          "type": "array"
+        }
+      },
+      "required": ["text", "type", "userId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Quiz categories"
+    },
+    "/quizzes/{quizId}": {
+      "schema": "Quiz",
+      "description": "Quizzes"
+    },
+    "/quizzes/{quizId}/questions/{questionId}": {
+      "schema": "Question",
+      "description": "Exam questions"
+    },
+    "/attempts/{attemptId}": {
+      "schema": "Attempt",
+      "description": "User quiz attempts"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Registered user profiles"
+    },
+    "/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Premium candidate premium signup requests"
+    },
+    "/announcements/{announcementId}": {
+      "schema": "Announcement",
+      "description": "System announcements"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "In-app notifications"
+    }
+  }
+}

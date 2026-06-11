@@ -1,0 +1,156 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn();
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == "first22960@gmail.com";
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Entity validation functions
+    function isValidCategory(data) {
+      return "name" in data && data.name is string && data.name.size() > 0 && data.name.size() <= 200
+        && "description" in data && data.description is string && data.description.size() <= 1000
+        && "createdBy" in data && data.createdBy is string && data.createdBy.size() <= 128;
+    }
+
+    function isValidQuiz(data) {
+      return "categoryId" in data && data.categoryId is string && data.categoryId.size() <= 128
+        && "title" in data && data.title is string && data.title.size() > 0 && data.title.size() <= 200
+        && "description" in data && data.description is string && data.description.size() <= 1000
+        && "timeLimit" in data && data.timeLimit is int && data.timeLimit >= 0 && data.timeLimit <= 120
+        && "questionsCount" in data && data.questionsCount is int && data.questionsCount >= 0 && data.questionsCount <= 100
+        && "createdBy" in data && data.createdBy is string && data.createdBy.size() <= 128
+        && (!("isFree" in data) || data.isFree is bool);
+    }
+
+    function isValidQuestion(data) {
+      return "text" in data && data.text is string && data.text.size() > 0 && data.text.size() <= 2000
+        && "options" in data && data.options is list && data.options.size() >= 2 && data.options.size() <= 10
+        && "correctIndex" in data && data.correctIndex is int && data.correctIndex >= 0
+        && "explanation" in data && data.explanation is string && data.explanation.size() <= 2000;
+    }
+
+    function isValidAttempt(data) {
+      return "userId" in data && data.userId is string && data.userId.size() <= 128
+        && "userEmail" in data && data.userEmail is string && data.userEmail.size() <= 200
+        && "userName" in data && data.userName is string && data.userName.size() <= 500
+        && "quizId" in data && data.quizId is string && data.quizId.size() <= 128
+        && "quizTitle" in data && data.quizTitle is string && data.quizTitle.size() <= 200
+        && "score" in data && (data.score is int || data.score is float) && data.score >= 0
+        && "totalQuestions" in data && (data.totalQuestions is int || data.totalQuestions is float) && data.totalQuestions >= 0;
+    }
+
+    function isValidUser(data) {
+      return (!("uid" in data) || (data.uid is string && data.uid == request.auth.uid))
+        && (!("email" in data) || data.email is string)
+        && (!("displayName" in data) || data.displayName is string)
+        && (!("photoURL" in data) || data.photoURL is string)
+        && (!("lastSeenAt" in data) || data.lastSeenAt is string)
+        && (!("status" in data) || data.status is string)
+        && (!("approved" in data) || data.approved is bool)
+        && (!("plainPassword" in data) || data.plainPassword is string);
+    }
+
+    function isValidPayment(data) {
+      return "name" in data && data.name is string && data.name.size() > 0 && data.name.size() <= 200
+        && "email" in data && data.email is string && data.email.size() > 0 && data.email.size() <= 200
+        && "phone" in data && data.phone is string && data.phone.size() > 0 && data.phone.size() <= 100
+        && "slipDataURL" in data && data.slipDataURL is string && data.slipDataURL.size() > 0
+        && "status" in data && data.status is string && (data.status == "pending" || data.status == "approved" || data.status == "rejected");
+    }
+
+    // Rules for each collection
+    match /categories/{categoryId} {
+      allow get, list: if isSignedIn();
+      allow create: if isAdmin() && isValidId(categoryId) && isValidCategory(incoming())
+        && incoming().createdAt == request.time
+        && incoming().createdBy == request.auth.uid;
+      allow update: if isAdmin() && isValidId(categoryId) && isValidCategory(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().createdBy == existing().createdBy;
+      allow delete: if isAdmin() && isValidId(categoryId);
+    }
+
+    match /quizzes/{quizId} {
+      allow get, list: if isSignedIn();
+      allow create: if isAdmin() && isValidId(quizId) && isValidQuiz(incoming())
+        && incoming().createdAt == request.time
+        && incoming().createdBy == request.auth.uid;
+      allow update: if isAdmin() && isValidId(quizId) && isValidQuiz(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().createdBy == existing().createdBy;
+      allow delete: if isAdmin() && isValidId(quizId);
+
+      // Subcollection questions rules
+      match /questions/{questionId} {
+        allow get, list: if isSignedIn();
+        allow create: if isAdmin() && isValidId(questionId) && isValidQuestion(incoming())
+          && incoming().createdAt == request.time;
+        allow update: if isAdmin() && isValidId(questionId) && isValidQuestion(incoming())
+          && incoming().createdAt == existing().createdAt;
+        allow delete: if isAdmin() && isValidId(questionId);
+      }
+    }
+
+    match /attempts/{attemptId} {
+      // Allow list and get publicly to support showing real-time course leaderboard
+      allow get, list: if isSignedIn();
+      
+      // Submit new attempt (immortal upon insert, never modifiable/deletable)
+      allow create: if isSignedIn() && isValidId(attemptId) && isValidAttempt(incoming())
+        && incoming().userId == request.auth.uid
+        && incoming().completedAt == request.time;
+      
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if (isSignedIn() && request.auth.uid == userId && isValidUser(incoming())) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /payments/{paymentId} {
+      allow get: if isSignedIn() && (resource.data.email == request.auth.token.email || isAdmin());
+      allow list: if isAdmin() || (isSignedIn() && resource.data.email == request.auth.token.email);
+      allow create: if isValidId(paymentId) && isValidPayment(incoming()) && incoming().createdAt == request.time;
+      allow update: if isAdmin() && isValidPayment(incoming()) && incoming().createdAt == existing().createdAt;
+      allow delete: if isAdmin();
+    }
+
+    match /announcements/{announcementId} {
+      allow get, list: if true;
+      allow create: if isAdmin() && isValidId(announcementId) && incoming().createdAt == request.time;
+      allow update: if isAdmin() && incoming().createdAt == existing().createdAt;
+      allow delete: if isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isSignedIn(); // Anyone can trigger student/admin requests or update readBy arrays
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+    }
+  }
+}
