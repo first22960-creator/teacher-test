@@ -1022,7 +1022,7 @@ export default function AdminPanel({ mode }: { mode?: "quiz" | "approvals" }) {
         <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden space-y-4">
           <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h3 className="text-sm font-bold text-slate-900">รายการสลิปและโอนเงินพรีเมียม (199.- บาท)</h3>
+              <h3 className="text-sm font-bold text-slate-900">รายการสลิปและโอนเงินพรีเมียม (99.- บาท)</h3>
               <p className="text-[11px] text-slate-500 mt-1">ผู้ใช้แจ้งสลิปชำระเงินเข้ามา ระบบจะอัปเดตสถานะและเปิดให้กดสับเปลี่ยนอนุมัติผู้สมัครอัตโนมัติเมื่อตรวจสอบสลิป</p>
             </div>
             

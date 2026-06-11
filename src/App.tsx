@@ -491,33 +491,11 @@ export default function App() {
                         <path d="M12,6.5a5.21,5.21,0,0,1,3.48,1.32l2.61,-2.6A9.63,9.63,0,0,0,12,2,10,10,0,0,0,2.38,4.42l4,3.1A5.94,5.94,0,0,1,12,6.5Z" fill="#ea4335" />
                       </g>
                     </svg>
-                    <span>{isLoggingIn ? "กำลังเปิดช่องทาง Google..." : "ลงชื่อเข้าใช้ด้วยบัญชี Google"}</span>
+                    <span>{isLoggingIn ? "กำลังประมวลผล..." : "เข้าสู่ระบบด้วยบัญชี Google"}</span>
                   </button>
-
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-left">
-                    <p className="text-[10px] text-slate-500 leading-normal leading-relaxed text-center">
-                      * หากต้องการใช้ แอดมินวิเคราะห์สรุปความรู้ โปรดเข้าใช้งานด้วยบัญชีอีเมลแอดมินสาธิตระบบ
-                    </p>
-                  </div>
                 </div>
               </div>
-
             </div>
-
-            {/* Dedicated Public Announcement block (Requirement 4) */}
-            <div className="pt-12 border-t border-slate-200 mt-12 bg-white/40 p-6 sm:p-8 rounded-3xl border border-slate-100">
-              <div className="max-w-4xl mx-auto space-y-4">
-                <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-100 p-4 rounded-2xl text-indigo-900 shadow-3xs">
-                  <span className="text-xl">📢</span>
-                  <div>
-                    <h3 className="text-xs sm:text-xs font-black tracking-wide uppercase text-indigo-700">กระดานประกาศสาธารณะ</h3>
-                    <p className="text-[10px] text-indigo-600 mt-1 font-bold">ยินดีต้อนรับสู่ระบบฝึกอบรมข้อสอบครูผู้ช่วย ติดตามข่าวสารประชาสัมพันธ์ล่าสุดและตารางการเปิดรับสมัครสอบได้ทันทีด้านล่าง</p>
-                  </div>
-                </div>
-                <HomePanel isAdmin={false} userId="" />
-              </div>
-            </div>
-
           </div>
         ) : (
           /* ==================================================== */
@@ -556,28 +534,33 @@ export default function App() {
                   <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100 animate-pulse">
                     <Lock className="h-6 w-6 stroke-[2]" />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-4">
                     <h3 className="text-sm font-extrabold text-slate-900">🔒 ประวัติข้อสอบสงวนสิทธิ์เฉพาะสมาชิก</h3>
-                    <p className="text-xs text-slate-500 leading-relaxed font-semibold">
-                      ฟังก์ชันวิเคราะห์ระบบนวัตกรรมการสอบเฉลยรายข้อ และคลังสถิติผลคะแนนสะสมพัฒนาการ ยินดีมอบสิทธิ์ให้กับสมาชิกที่ชำระและได้รับการตรวจสอบเรียบร้อยแล้ว
+                    <p className="text-xs text-slate-550 leading-relaxed font-semibold block text-slate-500">
+                      ฟังก์ชันวิเคราะห์ระบบนวัตกรรมการสอบเฉลยรายข้อ และคลังสถิติผลคะแนนสะสมพัฒนาการ สงวนสิทธิ์สำหรับสมาชิกพรีเมียมเท่านั้น
                     </p>
-                  </div>
-                  <div className="flex flex-col gap-2 pt-2">
-                    <button
-                      onClick={() => setShowPayment(true)}
-                      className="w-full inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-500 transition-all shadow-xs cursor-pointer"
-                    >
-                      <CreditCard className="h-4.5 w-4.5" />
-                      <span>อัปเกรดสมาชิกพรีเมียม (199.- ตลอดชีพ)</span>
-                    </button>
-                    <a
-                      href="https://line.me"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-500 transition-colors shadow-xs cursor-pointer"
-                    >
-                      💬 ติดต่อส่งสลิปเพื่อขออนุมัติสิทธิ์ LINE
-                    </a>
+                    <p className="text-[11px] text-slate-500 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100 text-left">
+                      แอดมินต้องการตรวจสอบหลักฐานสลิปการชำระเงินของท่าน เพื่อเปิดสิทธิ์การใช้งานกลุ่มพรีเมียมคอร์ส (99.- ตลอดชีพ)
+                      <br /><br />
+                      หากท่านโอนเงินสมัครแล้วและส่งสลิปภายในระบบแล้ว กรุณารอสักครู่ แอดมินกำลังตรวจสอบและจะรีบอนุมัติสิทธิ์ให้ท่านโดยเร็วที่สุด!
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={() => setShowPayment(true)}
+                        className="w-full inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-500 transition-all shadow-xs cursor-pointer"
+                      >
+                        <CreditCard className="h-4.5 w-4.5" />
+                        <span>อัปเกรดสมาชิกพรีเมียม (99.- ตลอดชีพ)</span>
+                      </button>
+                      <a
+                        href="https://line.me"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-500 transition-colors shadow-xs cursor-pointer"
+                      >
+                        💬 ติดต่อส่งสลิปเพื่อขออนุมัติสิทธิ์ LINE
+                      </a>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -629,7 +612,7 @@ export default function App() {
                             บัญชีของคุณ <span className="text-indigo-600 font-bold underline font-mono">{user.email}</span> ลงทะเบียนสมบูรณ์แล้ว
                           </p>
                           <p className="text-[11px] text-slate-500 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100 text-left text-slate-600">
-                            แอดมินต้องการตรวจสอบหลักฐานสลิปการชำระเงินของท่าน เพื่อสับเปลี่ยนเปิดให้เข้าใช้งานกลุ่มพรีเมียมคอร์ส (199.- ตลอดชีพ)
+                            แอดมินต้องการตรวจสอบหลักฐานสลิปการชำระเงินของท่าน เพื่อสับเปลี่ยนเปิดให้เข้าใช้งานกลุ่มพรีเมียมคอร์ส (99.- ตลอดชีพ)
                             <br /><br />
                             หากท่านโอนเงินสมัครแล้วและส่งสลิปพร้อมวิดีโอ 1,000+ ข้อ เข้ามาในระบบแล้ว กรุณารอสักครู่ แอดมินหลักตรวจสอบเสร็จสิ้นจะเร่งตอบรับสิทธิ์ของท่านภายในกี่นาที!
                           </p>
