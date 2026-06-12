@@ -202,7 +202,17 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
+        const providerId = currentUser.providerData[0]?.providerId || "";
+        console.log("[Firebase Auth State Change] User authenticated successfully:");
+        console.log(" - User UID:", currentUser.uid);
+        console.log(" - Email:", currentUser.email);
+        console.log(" - Provider ID:", providerId);
+        if (providerId === "google.com" || currentUser.providerId === "google.com") {
+          console.log("[Google Sign-In] Success! A Google account was authenticated successfully.");
+        }
         saveUserProfile(currentUser, "online");
+      } else {
+        console.log("[Firebase Auth State Change] User is logged out.");
       }
       setAuthLoading(false);
     });
@@ -243,27 +253,49 @@ export default function App() {
         // Single Active Session Validation Check
         const localSessionId = localStorage.getItem("exam_active_session_id");
         const sessionWriteStatus = localStorage.getItem("session_write_status");
+        const anotherDeviceFlag = localStorage.getItem("session_terminated_reason");
 
-        console.log("[Active Session Check] local:", localSessionId, "db:", profile.activeSessionId, "status:", sessionWriteStatus, "confirmedRef:", isSessionConfirmedRef.current);
+        const isMatch = profile.activeSessionId === localSessionId;
+        const isConfirmed = isSessionConfirmedRef.current || sessionWriteStatus === "confirmed";
+
+        // Determine visual redirection destination
+        let redirectDest = "Login Page / Guest Discovery";
+        if (user) {
+          if (isMatch || !isConfirmed) {
+            redirectDest = "Dashboard / App Shell";
+          } else {
+            redirectDest = "Forced Logout -> Redirecting to Login Page";
+          }
+        }
+
+        console.log("[Active Session Debug Log Query]");
+        console.log(" - Google Sign-In Active Current Status: Success");
+        console.log(" - Firebase User UID:", user.uid);
+        console.log(" - New Local Active Session ID:", localSessionId);
+        console.log(" - Firestore activeSessionId:", profile.activeSessionId);
+        console.log(" - Session Comparison Result (isMatch):", isMatch);
+        console.log(" - another_device flag ('session_terminated_reason'):", anotherDeviceFlag);
+        console.log(" - Redirect Destination:", redirectDest);
+        console.log(" - sessionWriteStatus in local storage:", sessionWriteStatus);
+        console.log(" - isSessionConfirmedRef.current state:", isSessionConfirmedRef.current);
 
         if (localSessionId && profile.activeSessionId) {
-          if (profile.activeSessionId === localSessionId) {
+          if (isMatch) {
             console.log("[Active Session Check] Match! Session is now confirmed.");
             setSessionConfirmed(true);
             localStorage.setItem("session_write_status", "confirmed");
           } else {
-            // We only trigger forced logout if the session was previously confirmed OR the local state is not pending
-            const isConfirmed = isSessionConfirmedRef.current || sessionWriteStatus === "confirmed";
-            const isNotPending = sessionWriteStatus !== "pending";
-
-            if (isConfirmed || isNotPending) {
-              console.warn("[Active Session Check] Mismatch detected and session is considered active. Logging out. db:", profile.activeSessionId, "local:", localSessionId);
+            // We ONLY trigger forced logout if the session was previously fully confirmed on this device.
+            // If the session has never been confirmed on this device (e.g. login is in progress),
+            // we should never perform high-risk forced logouts.
+            if (isConfirmed) {
+              console.warn("[Active Session Check] Mismatch detected on an active confirmed session! Forced logging out. db:", profile.activeSessionId, "local:", localSessionId);
               localStorage.setItem("session_terminated_reason", "another_device");
               setSessionWarning("Your account has been logged in from another device. Please log in again.");
               logOut(true);
               return;
             } else {
-              console.log("[Active Session Check] Mismatch ignored because session is still pending write / confirmation.");
+              console.log("[Active Session Check] Mismatch ignored because session has not been confirmed on this device yet. Pending database write snapshot.");
             }
           }
         }
