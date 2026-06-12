@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { Megaphone, Trash2, Calendar, FileText, Send, AlertCircle, CheckCircle, Sparkles, Upload, X } from "lucide-react";
-import { subscribeToAnnouncements, createAnnouncement, deleteAnnouncement, createNotification } from "../lib/firebase";
+import { auth, subscribeToAnnouncements, createAnnouncement, deleteAnnouncement, createNotification } from "../lib/firebase";
 
 interface HomePanelProps {
   isAdmin: boolean;
   userId: string;
+  userProfile?: any;
 }
 
-export default function HomePanel({ isAdmin, userId }: HomePanelProps) {
+export default function HomePanel({ isAdmin, userId, userProfile }: HomePanelProps) {
+  const isOwner = auth.currentUser?.email?.toLowerCase() === "first22960@gmail.com";
+  const canCreateAnnouncement = isOwner || userProfile?.adminPermissions?.createAnnouncement !== false;
+
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -120,145 +124,159 @@ export default function HomePanel({ isAdmin, userId }: HomePanelProps) {
 
       {/* Admin Broadcast Creation Form */}
       {isAdmin && (
-        <div className="rounded-2xl border border-slate-100 bg-white p-5 sm:p-6 shadow-sm space-y-4">
-          <div className="border-b border-slate-50 pb-3 flex items-center gap-2">
-            <div className="h-6 w-1 bg-indigo-600 rounded-full"></div>
-            <h3 className="text-sm font-bold text-slate-800">✍️ ส่งประกาศข่าวสารใหม่ (แผงควบคุมฝ่ายบริหาร)</h3>
-          </div>
+        canCreateAnnouncement ? (
+          <div className="rounded-2xl border border-slate-100 bg-white p-5 sm:p-6 shadow-sm space-y-4">
+            <div className="border-b border-slate-50 pb-3 flex items-center gap-2">
+              <div className="h-6 w-1 bg-indigo-600 rounded-full"></div>
+              <h3 className="text-sm font-bold text-slate-800">✍️ ส่งประกาศข่าวสารใหม่ (แผงควบคุมฝ่ายบริหาร)</h3>
+            </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4 text-xs font-semibold">
-            {status && (
-              <div className={`p-3.5 rounded-xl border flex items-start gap-2.5 ${
-                status.type === "success" 
-                  ? "bg-emerald-50 border-emerald-100 text-emerald-800" 
-                  : "bg-rose-50 border-rose-100 text-rose-800"
-              }`}>
-                {status.type === "success" ? <CheckCircle className="h-4.5 w-4.5 shrink-0" /> : <AlertCircle className="h-4.5 w-4.5 shrink-0" />}
-                <p className="text-xs font-semibold">{status.text}</p>
+            <form onSubmit={handleSubmit} className="space-y-4 text-xs font-semibold">
+              {status && (
+                <div className={`p-3.5 rounded-xl border flex items-start gap-2.5 ${
+                  status.type === "success" 
+                    ? "bg-emerald-50 border-emerald-100 text-emerald-800" 
+                    : "bg-rose-50 border-rose-100 text-rose-800"
+                }`}>
+                  {status.type === "success" ? <CheckCircle className="h-4.5 w-4.5 shrink-0" /> : <AlertCircle className="h-4.5 w-4.5 shrink-0" />}
+                  <p className="text-xs font-semibold">{status.text}</p>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="block text-slate-700 font-bold">หัวข้อข่าว / หัวเรื่องสำคัญ</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="ระบุหัวข้อที่น่าสนใจ เช่น ประกาศรอบสอบ คอร์สเก็งข้อสอบใหม่ เป็นต้น..."
+                  className="w-full rounded-xl border border-slate-200 outline-hidden py-2 px-3 text-xs focus:border-indigo-500 transition-all font-semibold text-slate-800"
+                  maxLength={100}
+                />
               </div>
-            )}
 
-            <div className="space-y-2">
-              <label className="block text-slate-700 font-bold">หัวข้อข่าว / หัวเรื่องสำคัญ</label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="ระบุหัวข้อที่น่าสนใจ เช่น ประกาศรอบสอบ คอร์สเก็งข้อสอบใหม่ เป็นต้น..."
-                className="w-full rounded-xl border border-slate-200 outline-hidden py-2 px-3 text-xs focus:border-indigo-500 transition-all font-semibold text-slate-800"
-                maxLength={100}
-              />
-            </div>
+              <div className="space-y-2">
+                <label className="block text-slate-700 font-bold">รายละเอียดประชาสัมพันธ์</label>
+                <textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="พิมพ์รายระเอียดข่าวสารที่จะแชร์ให้กับสมาชิกผู้เตรียมสอบทราบ..."
+                  rows={4}
+                  className="w-full rounded-xl border border-slate-200 outline-hidden py-2 px-3 text-xs focus:border-indigo-500 transition-all font-medium text-slate-700"
+                  maxLength={2000}
+                />
+              </div>
 
-            <div className="space-y-2">
-              <label className="block text-slate-700 font-bold">รายละเอียดประชาสัมพันธ์</label>
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="พิมพ์รายระเอียดข่าวสารที่จะแชร์ให้กับสมาชิกผู้เตรียมสอบทราบ..."
-                rows={4}
-                className="w-full rounded-xl border border-slate-200 outline-hidden py-2 px-3 text-xs focus:border-indigo-500 transition-all font-medium text-slate-700"
-                maxLength={2000}
-              />
-            </div>
-
-            {/* Image Uploader */}
-            <div className="space-y-2">
-              <label className="block text-slate-700 font-bold">รูปภาพประกอบประกาศ (ถ้ามี)</label>
-              
-              {!base64Image ? (
-                <div 
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const file = e.dataTransfer.files?.[0];
-                    if (file) {
-                      if (!file.type.startsWith("image/")) {
-                        setImageError("กรุณาเลือกไฟล์รูปภาพเท่านั้น");
-                        return;
-                      }
-                      if (file.size > 2 * 1024 * 1024) {
-                        setImageError("ขนาดไฟล์ภาพต้องไม่เกิน 2MB");
-                        return;
-                      }
-                      setImageError("");
-                      const reader = new FileReader();
-                      reader.onload = () => {
-                        setBase64Image(reader.result as string);
-                      };
-                      reader.readAsDataURL(file);
-                    }
-                  }}
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-2xl p-6 text-center cursor-pointer hover:bg-slate-50 transition-all space-y-2"
-                >
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleImageChange}
-                    accept="image/*"
-                    className="hidden"
-                  />
-                  <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-slate-50 text-slate-400 hover:text-indigo-600">
-                    <Upload className="h-5 w-5" />
-                  </div>
-                  <div className="text-xs text-slate-600">
-                    <strong className="text-indigo-600 font-bold">คลิกอัปโหลดรูปภาพ</strong> หรือลากและวางรูปภาพที่นี่
-                  </div>
-                  <p className="text-[10px] text-slate-400 font-medium">รองรับไฟล์ภาพ JPEG, PNG, WEBP ขนาดไม่เกิน 2MB</p>
-                </div>
-              ) : (
-                <div className="relative border border-slate-100 rounded-2xl overflow-hidden bg-slate-50 p-2 flex items-center gap-3 w-full">
-                  <img 
-                    src={base64Image} 
-                    alt="Preview" 
-                    className="h-16 w-16 object-cover rounded-xl border border-slate-200"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-slate-800 truncate">แนบรูปภาพประชาสัมพันธ์เรียบร้อยแล้ว</p>
-                    <p className="text-[10px] text-slate-400 font-medium">พร้อมบันทึกคู่กับหัวข้อข่าวสาร</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBase64Image(null);
-                      if (fileInputRef.current) fileInputRef.current.value = "";
+              {/* Image Uploader */}
+              <div className="space-y-2">
+                <label className="block text-slate-700 font-bold">รูปภาพประกอบประกาศ (ถ้ามี)</label>
+                
+                {!base64Image ? (
+                  <div 
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                     }}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer mr-2"
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) {
+                        if (!file.type.startsWith("image/")) {
+                          setImageError("กรุณาเลือกไฟล์รูปภาพเท่านั้น");
+                          return;
+                        }
+                        if (file.size > 2 * 1024 * 1024) {
+                          setImageError("ขนาดไฟล์ภาพต้องไม่เกิน 2MB");
+                          return;
+                        }
+                        setImageError("");
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          setBase64Image(reader.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-2xl p-6 text-center cursor-pointer hover:bg-slate-50 transition-all space-y-2"
                   >
-                    <X className="h-4.5 w-4.5" />
-                  </button>
-                </div>
-              )}
-              
-              {imageError && (
-                <p className="text-[11px] text-rose-600 font-bold flex items-center gap-1 mt-1">
-                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                  <span>{imageError}</span>
-                </p>
-              )}
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
-              >
-                {isSubmitting ? (
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleImageChange}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-slate-50 text-slate-400 hover:text-indigo-600">
+                      <Upload className="h-5 w-5" />
+                    </div>
+                    <div className="text-xs text-slate-600">
+                      <strong className="text-indigo-600 font-bold">คลิกอัปโหลดรูปภาพ</strong> หรือลากและวางรูปภาพที่นี่
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-medium">รองรับไฟล์ภาพ JPEG, PNG, WEBP ขนาดไม่เกิน 2MB</p>
+                  </div>
                 ) : (
-                  <Send className="h-3.5 w-3.5" />
+                  <div className="relative border border-slate-100 rounded-2xl overflow-hidden bg-slate-50 p-2 flex items-center gap-3 w-full">
+                    <img 
+                      src={base64Image} 
+                      alt="Preview" 
+                      className="h-16 w-16 object-cover rounded-xl border border-slate-200"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-800 truncate">แนบรูปภาพประชาสัมพันธ์เรียบร้อยแล้ว</p>
+                      <p className="text-[10px] text-slate-400 font-medium">พร้อมบันทึกคู่กับหัวข้อข่าวสาร</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBase64Image(null);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer mr-2"
+                    >
+                      <X className="h-4.5 w-4.5" />
+                    </button>
+                  </div>
                 )}
-                <span>เผยแพร่ข่าวสารประชาสัมพันธ์</span>
-              </button>
+                
+                {imageError && (
+                  <p className="text-[11px] text-rose-600 font-bold flex items-center gap-1 mt-1">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                    <span>{imageError}</span>
+                  </p>
+                )}
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+                >
+                  {isSubmitting ? (
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+                  ) : (
+                    <Send className="h-3.5 w-3.5" />
+                  )}
+                  <span>เผยแพร่ข่าวสารประชาสัมพันธ์</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : (
+          <div className="rounded-3xl border border-rose-150 bg-rose-50/40 p-6 flex items-start gap-4 shadow-xs">
+            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-rose-500 border border-rose-100 shrink-0">
+              <AlertCircle className="h-5.5 w-5.5" />
             </div>
-          </form>
-        </div>
+            <div>
+              <h4 className="text-xs font-bold text-rose-950">🔒 ฟังก์ชันเขียนประกาศข่าวถูกจำกัดสิทธิ์ใช้งาน</h4>
+              <p className="text-[11px] text-rose-800 leading-relaxed mt-1 font-semibold">
+                คุณสามารถทำหน้าที่บริหารจัดการข้อมูลชุดข้อสอบอื่นได้ แต่อำนาจเด็ดขาดในส่วน "เขียน/เผยแพร่ข่าวสารประชาสัมพันธ์" และส่งแจ้งเตือนให้กับนักเรียนได้รับการตั้งค่าระงับการตรวจสอบสิทธิ์โดยตรงจากเจ้าของลิขสิทธิ์ระบบอย่างเป็นทางการ (Super Admin - คุณเฟิร์ส)
+              </p>
+            </div>
+          </div>
+        )
       )}
 
       {/* Announcements Stream Card List */}

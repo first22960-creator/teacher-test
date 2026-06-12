@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Sparkles, BookOpen, Clock, Trash2, Check, HelpCircle, FileText, LayoutGrid, CheckCircle, Users, ShieldCheck, Eye, EyeOff, Image, Search, Phone, Mail, UserCheck, XCircle, X } from "lucide-react";
+import { Plus, Sparkles, BookOpen, Clock, Trash2, Edit3, Check, HelpCircle, FileText, LayoutGrid, CheckCircle, Users, ShieldCheck, Eye, EyeOff, Image, Search, Phone, Mail, UserCheck, XCircle, X } from "lucide-react";
 import { Category, Quiz, Question } from "../types";
 import { 
   auth,
@@ -17,11 +17,21 @@ import {
   deletePayment,
   createNotification,
   updateUserApproval,
-  updateUserRole
+  updateUserRole,
+  fetchQuestions,
+  updateQuiz,
+  updateAdminPermissions
 } from "../lib/firebase";
 
-export default function AdminPanel({ mode }: { mode?: "quiz" | "approvals" }) {
+interface AdminPanelProps {
+  mode?: "quiz" | "approvals";
+  userProfile?: any;
+}
+
+export default function AdminPanel({ mode, userProfile }: AdminPanelProps) {
   const isOwner = auth.currentUser?.email?.toLowerCase() === "first22960@gmail.com";
+  const canCreateQuiz = isOwner || userProfile?.adminPermissions?.createQuiz !== false;
+  const canDeleteQuiz = isOwner || userProfile?.adminPermissions?.deleteQuiz !== false;
   const [categories, setCategories] = useState<Category[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,10 +136,19 @@ export default function AdminPanel({ mode }: { mode?: "quiz" | "approvals" }) {
     }
   };
 
-  const handleRejectPayment = async (paymentId: string) => {
+  const handleRejectPayment = async (paymentId: string, email: string) => {
     try {
       await updatePaymentStatus(paymentId, "rejected");
-      setAdminNotification({ message: "ปฏิเสธสลิปหลักฐานโอนเงินเรียบร้อยแล้ว", type: "success" });
+
+      // Set matching user to rejected paymentStatus so they can re-upload
+      const matchingUsers = usersList.filter(u => u.email?.trim().toLowerCase() === email.trim().toLowerCase());
+      if (matchingUsers.length > 0) {
+        for (const usr of matchingUsers) {
+          await updateUserApproval(usr.id || usr.uid, false, "rejected");
+        }
+      }
+
+      setAdminNotification({ message: "ปฏิเสธสลิปหลักฐานแจ้งชำระเงิน และเปิดให้ผู้ใช้งานแก้ไขสลิปใหม่เรียบร้อยแล้ว", type: "success" });
     } catch (err: any) {
       setAdminNotification({ message: err.message || "ล้มเหลวในการบันทึกสถานะ", type: "error" });
     } finally {
@@ -195,6 +214,55 @@ export default function AdminPanel({ mode }: { mode?: "quiz" | "approvals" }) {
   const [quizTimeLimit, setQuizTimeLimit] = useState("15");
   const [quizIsFree, setQuizIsFree] = useState(false);
 
+  // Quiz editing states
+  const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
+
+  const handleEditQuizClick = async (q: Quiz) => {
+    try {
+      setAdminActionLoading(true);
+      // Fetch full questions list from subcollection
+      const qList = await fetchQuestions(q.id);
+      
+      // Populate fields
+      setEditingQuizId(q.id);
+      setSelectedCatId(q.categoryId);
+      setQuizTitle(q.title);
+      setQuizDesc(q.description);
+      setQuizTimeLimit(String(q.timeLimit));
+      setQuizIsFree(!!q.isFree);
+      
+      // Map questions list
+      setQuestionsList(qList.map(item => ({
+        text: item.text,
+        options: item.options,
+        correctIndex: Number(item.correctIndex),
+        explanation: item.explanation || ""
+      })));
+      
+      // Scroll to top of the form so they see the editor
+      const formEl = document.getElementById("admin-quiz-creation-form");
+      if (formEl) {
+        formEl.scrollIntoView({ behavior: "smooth" });
+      }
+
+      setAdminNotification({ message: `โหลดข้อมูล "${q.title}" ในโหมดแก้ไขเรียบร้อย!`, type: "success" });
+    } catch (err: any) {
+      setAdminNotification({ message: err.message || "ล้มเหลวในการดึงคำถามเพื่อแก้ไข", type: "error" });
+    } finally {
+      setAdminActionLoading(false);
+      setTimeout(() => setAdminNotification(null), 3000);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingQuizId(null);
+    setQuizTitle("");
+    setQuizDesc("");
+    setQuizTimeLimit("15");
+    setQuizIsFree(false);
+    setQuestionsList([]);
+  };
+
   // Question lists (manual or AI-generated)
   const [questionsList, setQuestionsList] = useState<Omit<Question, "createdAt">[]>([]);
   const [creatingQuiz, setCreatingQuiz] = useState(false);
@@ -258,6 +326,11 @@ export default function AdminPanel({ mode }: { mode?: "quiz" | "approvals" }) {
   };
 
   const handleDeleteQuiz = (id: string) => {
+    if (!canDeleteQuiz) {
+      setAdminNotification({ message: "❌ ขออภัย! คุณไม่มีสิทธิ์ในการลบข้อสอบในระบบ กรุณาติดต่อแอดมินคุณเฟิร์สเพื่อขออนุมัติ", type: "error" });
+      setTimeout(() => setAdminNotification(null), 5000);
+      return;
+    }
     setConfirmDialog({
       id,
       type: "quiz",
@@ -336,6 +409,11 @@ export default function AdminPanel({ mode }: { mode?: "quiz" | "approvals" }) {
   // Save the constructed quiz complete with questions directly in the DB
   const handleSaveQuiz = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCreateQuiz) {
+      setAdminNotification({ message: "❌ ขออภัย! คุณไม่มีสิทธิ์ในการเพิ่มหรือแก้ไขข้อสอบในระบบ กรุณาติดต่อแอดมินคุณเฟิร์สเพื่อขอสิทธิ์เข้าถึง", type: "error" });
+      setTimeout(() => setAdminNotification(null), 5000);
+      return;
+    }
     if (!selectedCatId || !quizTitle.trim()) {
       setAdminNotification({ message: "กรุณากรอกข้อมูลส่วนหมวดหมู่ และหัวเรื่องให้ครบถ้วน", type: "error" });
       setTimeout(() => setAdminNotification(null), 4000);
@@ -349,13 +427,22 @@ export default function AdminPanel({ mode }: { mode?: "quiz" | "approvals" }) {
 
     try {
       setCreatingQuiz(true);
-      await createQuiz(selectedCatId, quizTitle, quizDesc.trim() || `${quizTitle} (แบบทดสอบ)`, Number(quizTimeLimit), questionsList, quizIsFree);
-      
-      // Notify all users about the new quiz (if it's free, notify everyone, else notify premium members)
-      const notifyMessage = quizIsFree 
-        ? `🔥 แบบฝึกหัดใหม่เปิดให้ลองทำฟรี: "${quizTitle}"!` 
-        : `📚 มีชุดแบบฝึกหัดพรีเมียมใหม่ให้ตลุย: "${quizTitle}"!`;
-      await createNotification(notifyMessage, "new_quiz", "all");
+      if (editingQuizId) {
+        // Edit Mode
+        await updateQuiz(editingQuizId, selectedCatId, quizTitle.trim(), quizDesc.trim() || `${quizTitle} (แบบทดสอบ)`, Number(quizTimeLimit), questionsList, quizIsFree);
+        setAdminNotification({ message: "อัปเดตชุดแบบทดสอบและเนื้อหารายประเด็นเสร็จเรียบร้อย!", type: "success" });
+        setEditingQuizId(null);
+      } else {
+        // Creation Mode
+        await createQuiz(selectedCatId, quizTitle, quizDesc.trim() || `${quizTitle} (แบบทดสอบ)`, Number(quizTimeLimit), questionsList, quizIsFree);
+        
+        // Notify all users about the new quiz (if it's free, notify everyone, else notify premium members)
+        const notifyMessage = quizIsFree 
+          ? `🔥 แบบฝึกหัดใหม่เปิดให้ลองทำฟรี: "${quizTitle}"!` 
+          : `📚 มีชุดแบบฝึกหัดพรีเมียมใหม่ให้ตลุย: "${quizTitle}"!`;
+        await createNotification(notifyMessage, "new_quiz", "all");
+        setAdminNotification({ message: "บันทึกข้อมูลชุดแบบทดสอบและข้อสอบทั้งหมดเสร็จเรียบร้อยแล้ว!", type: "success" });
+      }
 
       // Cleanup States
       setQuizTitle("");
@@ -364,7 +451,6 @@ export default function AdminPanel({ mode }: { mode?: "quiz" | "approvals" }) {
       setQuizIsFree(false);
       setQuestionsList([]);
       await loadData();
-      setAdminNotification({ message: "บันทึกข้อมูลชุดแบบทดสอบและข้อสอบทั้งหมดเสร็จเรียบร้อยแล้ว!", type: "success" });
     } catch (err) {
       setAdminNotification({ message: "ไม่สามารถบันทึกข้อสอบได้ กรุณาติดต่อทีมสนับสนุนผู้ดูแลระบบ", type: "error" });
     } finally {
@@ -792,14 +878,31 @@ export default function AdminPanel({ mode }: { mode?: "quiz" | "approvals" }) {
               </div>
 
               {/* Save All */}
-              <div className="border-t border-slate-100 pt-5 flex justify-end">
+              <div className="border-t border-slate-100 pt-5 flex justify-end gap-3">
+                {editingQuizId && (
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 px-4 py-2.5 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    <span>ยกเลิกการแก้ไข</span>
+                  </button>
+                )}
                 <button
                   type="submit"
                   disabled={creatingQuiz || questionsList.length === 0}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-6 py-2.5 text-xs font-bold text-white hover:bg-emerald-500 transition-colors disabled:opacity-40 cursor-pointer shadow-sm"
+                  className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-6 py-2.5 text-xs font-bold text-white transition-colors disabled:opacity-40 cursor-pointer shadow-sm ${
+                    editingQuizId ? "bg-indigo-600 hover:bg-indigo-550 lg:hover:bg-indigo-500" : "bg-emerald-600 hover:bg-emerald-500"
+                  }`}
                 >
                   <CheckCircle className="h-4 w-4" />
-                  <span>{creatingQuiz ? "กำลังบันทึกชุดโครงสร้าง..." : "บันทึกแบบทดสอบ"}</span>
+                  <span>
+                    {creatingQuiz 
+                      ? "กำลังบันทึกชุดโครงสร้าง..." 
+                      : editingQuizId 
+                        ? "อัปเดตข้อมูลแบบทดสอบ" 
+                        : "บันทึกแบบทดสอบ"}
+                  </span>
                 </button>
               </div>
 
@@ -825,13 +928,22 @@ export default function AdminPanel({ mode }: { mode?: "quiz" | "approvals" }) {
                           <span className="rounded bg-indigo-50 px-2 py-0.5 text-[9px] font-semibold text-indigo-700">
                             {cat ? cat.name : "ทั่วไป"}
                           </span>
-                          <button
-                            onClick={() => handleDeleteQuiz(q.id)}
-                            className="text-slate-400 hover:text-rose-600 p-1 rounded transition-colors"
-                            title="ลบชุดสอบนี้"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleEditQuizClick(q)}
+                              className="text-slate-400 hover:text-indigo-600 p-1 rounded transition-colors cursor-pointer"
+                              title="แก้ไขชุดข้อสอบนี้"
+                            >
+                              <Edit3 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteQuiz(q.id)}
+                              className="text-slate-400 hover:text-rose-600 p-1 rounded transition-colors cursor-pointer"
+                              title="ลบชุดสอบนี้"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </div>
                         <h4 className="text-xs font-bold text-slate-900 mt-2">{q.title}</h4>
                         <p className="text-[10px] text-slate-500 mt-1 pb-2 line-clamp-2">{q.description}</p>
@@ -1012,6 +1124,58 @@ export default function AdminPanel({ mode }: { mode?: "quiz" | "approvals" }) {
                                   {usr.role === "admin" ? "ถอนสิทธิ์แอดมิน" : "แต่งตั้งแอดมิน"}
                                 </button>
                               )}
+                              {usr.role === "admin" && isOwner && (
+                                <div className="mt-2.5 p-2 bg-slate-50 border border-slate-200/60 rounded-xl space-y-1.5 w-44 shadow-xs">
+                                  <div className="text-[9px] font-extrabold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                                    <ShieldCheck className="h-3 w-3 text-emerald-500" /> จัดการสิทธิ์แอดมิน:
+                                  </div>
+                                  <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700 cursor-pointer hover:text-indigo-600 transition-colors">
+                                    <input
+                                      type="checkbox"
+                                      checked={usr.adminPermissions?.createQuiz !== false}
+                                      onChange={async (e) => {
+                                        const curPerms = usr.adminPermissions || { createQuiz: true, createAnnouncement: true, deleteQuiz: true };
+                                        await updateAdminPermissions(usr.id || usr.uid, {
+                                          ...curPerms,
+                                          createQuiz: e.target.checked
+                                        });
+                                      }}
+                                      className="rounded text-indigo-600 focus:ring-none scale-90 cursor-pointer"
+                                    />
+                                    <span>เพิ่ม/แก้ไขข้อสอบ</span>
+                                  </label>
+                                  <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700 cursor-pointer hover:text-indigo-600 transition-colors">
+                                    <input
+                                      type="checkbox"
+                                      checked={usr.adminPermissions?.createAnnouncement !== false}
+                                      onChange={async (e) => {
+                                        const curPerms = usr.adminPermissions || { createQuiz: true, createAnnouncement: true, deleteQuiz: true };
+                                        await updateAdminPermissions(usr.id || usr.uid, {
+                                          ...curPerms,
+                                          createAnnouncement: e.target.checked
+                                        });
+                                      }}
+                                      className="rounded text-indigo-600 focus:ring-none scale-90 cursor-pointer"
+                                    />
+                                    <span>สร้างประกาศข่าวสาร</span>
+                                  </label>
+                                  <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700 cursor-pointer hover:text-rose-600 transition-colors">
+                                    <input
+                                      type="checkbox"
+                                      checked={usr.adminPermissions?.deleteQuiz !== false}
+                                      onChange={async (e) => {
+                                        const curPerms = usr.adminPermissions || { createQuiz: true, createAnnouncement: true, deleteQuiz: true };
+                                        await updateAdminPermissions(usr.id || usr.uid, {
+                                          ...curPerms,
+                                          deleteQuiz: e.target.checked
+                                        });
+                                      }}
+                                      className="rounded text-indigo-600 focus:ring-none scale-90 cursor-pointer"
+                                    />
+                                    <span>ลบข้อสอบในระบบ</span>
+                                  </label>
+                                </div>
+                              )}
                             </div>
                           )}
                         </td>
@@ -1173,7 +1337,7 @@ export default function AdminPanel({ mode }: { mode?: "quiz" | "approvals" }) {
                                   <span>อนุมัติ & เปิดเข้าทำข้อสอบ</span>
                                 </button>
                                 <button
-                                  onClick={() => handleRejectPayment(pay.id)}
+                                  onClick={() => handleRejectPayment(pay.id, pay.email)}
                                   className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 rounded-xl text-[10px] font-bold transition-all cursor-pointer"
                                 >
                                   <span>ปฏิเสธสลิป</span>

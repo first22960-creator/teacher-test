@@ -80,6 +80,22 @@ service cloud.firestore {
         && "status" in data && data.status is string && (data.status == "pending" || data.status == "approved" || data.status == "rejected");
     }
 
+    function isValidSupportChat(data) {
+      return (!("userId" in data) || (data.userId is string && data.userId.size() <= 128))
+        && (!("userName" in data) || (data.userName is string && data.userName.size() <= 500))
+        && (!("userEmail" in data) || (data.userEmail is string && data.userEmail.size() <= 200))
+        && (!("lastMessageText" in data) || (data.lastMessageText is string && data.lastMessageText.size() <= 2000))
+        && (!("unreadByAdmin" in data) || data.unreadByAdmin is bool)
+        && (!("unreadByUser" in data) || data.unreadByUser is bool);
+    }
+
+    function isValidMessage(data) {
+      return (!("text" in data) || (data.text is string && data.text.size() <= 2000))
+        && (!("senderId" in data) || (data.senderId is string && data.senderId.size() <= 128))
+        && (!("senderName" in data) || (data.senderName is string && data.senderName.size() <= 500))
+        && (!("senderRole" in data) || (data.senderRole is string && (data.senderRole == "user" || data.senderRole == "admin")));
+    }
+
     // Rules for each collection
     match /categories/{categoryId} {
       allow get, list: if isSignedIn();
@@ -151,6 +167,21 @@ service cloud.firestore {
       allow get, list: if isSignedIn();
       allow create, update: if isSignedIn(); // Anyone can trigger student/admin requests or update readBy arrays
       allow delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+    }
+
+    match /support_chats/{chatUserId} {
+      allow get: if isSignedIn() && (chatUserId == request.auth.uid || isAdmin());
+      allow list: if isAdmin();
+      allow create, update: if isSignedIn() && (chatUserId == request.auth.uid || isAdmin()) && isValidSupportChat(incoming());
+      allow delete: if isAdmin() || (isSignedIn() && chatUserId == request.auth.uid);
+    }
+
+    match /support_chats/{chatUserId}/messages/{messageId} {
+      allow get, list: if isSignedIn() && (chatUserId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && (chatUserId == request.auth.uid || isAdmin()) && isValidMessage(incoming())
+        && (incoming().createdAt == request.time || incoming().createdAt == null);
+      allow update: if isAdmin();
+      allow delete: if isAdmin() || (isSignedIn() && chatUserId == request.auth.uid);
     }
   }
 }

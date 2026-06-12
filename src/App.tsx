@@ -24,6 +24,7 @@ import Leaderboard from "./components/Leaderboard";
 import SettingsModal from "./components/SettingsModal";
 import PaymentModal from "./components/PaymentModal";
 import HomePanel from "./components/HomePanel";
+import SupportPanel from "./components/SupportPanel";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -32,6 +33,11 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
+
+  // Sidebar expanded/collapsed state synchronized with localStorage
+  const [sidebarExpanded, setSidebarExpanded] = useState(() => {
+    return localStorage.getItem("sidebarExpanded") !== "false";
+  });
 
   // Account Settings and Real-time Attempts states
   const [showSettings, setShowSettings] = useState(false);
@@ -105,7 +111,7 @@ export default function App() {
   };
 
   // App navigation & selection
-  const [currentTab, setCurrentTab] = useState<"home" | "quizzes" | "admin" | "history" | "approvals">("home");
+  const [currentTab, setCurrentTab] = useState<"home" | "quizzes" | "admin" | "history" | "approvals" | "support">("home");
   const [categories, setCategories] = useState<Category[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [selectedCatId, setSelectedCatId] = useState<string>("all");
@@ -275,10 +281,18 @@ export default function App() {
         isTakingQuiz={isTakingQuiz}
         onlineUsers={onlineUsers}
         onOpenSettings={() => setShowSettings(true)}
+        onSidebarChange={setSidebarExpanded}
       />
 
-      {/* Main Content Stage */}
-      <main className="flex-grow mx-auto w-full max-w-7xl px-4 pt-6 pb-24 sm:py-8 sm:px-6 lg:px-8">
+      {/* Main Content Stage with Sidebar Padding Transition */}
+      <div className={`flex flex-col flex-grow min-h-0 transition-all duration-300 ${
+        user && !isTakingQuiz
+          ? sidebarExpanded
+            ? "md:pl-64"
+            : "md:pl-20"
+          : ""
+      }`}>
+        <main className="flex-grow mx-auto w-full max-w-7xl px-4 pt-6 pb-24 sm:py-8 sm:px-6 lg:px-8">
         
         {/* LANDING PAGE / GUEST DISCOVERY VIEWS */}
         {!user ? (
@@ -527,6 +541,8 @@ export default function App() {
               ) : currentTab === "approvals" && isAdmin ? (
                 // Admin module controller dashboard - Approvals Mode
                 <AdminPanel mode="approvals" />
+              ) : currentTab === "support" ? (
+                <SupportPanel isAdmin={isAdmin} userProfile={userProfile} />
             ) : currentTab === "history" ? (
               // Historic results summaries (Requirement 3: locked for unapproved users)
               userProfile?.approved === false && !isAdmin ? (
@@ -603,49 +619,97 @@ export default function App() {
                     {/* Right column: Verification status and actions box */}
                     <div className="space-y-6 lg:sticky lg:top-6">
                       <div className="rounded-3xl bg-white border border-slate-100 p-6 shadow-md text-center space-y-6">
-                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-50 text-amber-500 border border-amber-100 animate-pulse">
-                          <Clock className="h-7 w-7 stroke-[2]" />
-                        </div>
-                        <div className="space-y-2">
-                          <h3 className="text-sm font-extrabold text-slate-900">🕒 อยู่ระหว่างการตรวจสอบสิทธิ์การใช้งาน</h3>
-                          <p className="text-xs text-slate-550 font-semibold leading-relaxed">
-                            บัญชีของคุณ <span className="text-indigo-600 font-bold underline font-mono">{user.email}</span> ลงทะเบียนสมบูรณ์แล้ว
-                          </p>
-                          <p className="text-[11px] text-slate-500 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100 text-left text-slate-600">
-                            แอดมินต้องการตรวจสอบหลักฐานสลิปการชำระเงินของท่าน เพื่อสับเปลี่ยนเปิดให้เข้าใช้งานกลุ่มพรีเมียมคอร์ส (99.- ตลอดชีพ)
-                            <br /><br />
-                            หากท่านโอนเงินสมัครแล้วและส่งสลิปพร้อมวิดีโอ 1,000+ ข้อ เข้ามาในระบบแล้ว กรุณารอสักครู่ แอดมินหลักตรวจสอบเสร็จสิ้นจะเร่งตอบรับสิทธิ์ของท่านภายในกี่นาที!
-                          </p>
-                        </div>
-                        <div className="flex flex-col gap-2.5">
-                          <button
-                            id="payment-trigger-trial"
-                            onClick={() => setShowPayment(true)}
-                            className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-500 transition-all shadow-xs cursor-pointer"
-                          >
-                            <CreditCard className="h-4.5 w-4.5" />
-                            <span>สแกน QR Code และแนบสลิปแจ้งสิทธิ์ในระบบ</span>
-                          </button>
-                          <a
-                            id="line-trigger-trial"
-                            href="https://line.me"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-500 transition-colors shadow-xs cursor-pointer"
-                          >
-                            💬 ติดต่อแอดมินด่วนผ่าน LINE อนุมัติสิทธิ์
-                          </a>
-                          <button
-                            id="signout-trigger-trial"
-                            onClick={() => logOut()}
-                            className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-800 transition-all cursor-pointer font-bold"
-                          >
-                            ออกจากระบบเพื่อเข้าบัญชีอื่น
-                          </button>
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-bold">
-                          ระดับสิทธิ์: บัญชีผู้สอบค้างอนุมัติชั่วคราว • กรุณารอสักครู่
-                        </div>
+                        {userProfile?.paymentStatus === "rejected" ? (
+                          <>
+                            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-rose-50 text-rose-500 border border-rose-100 animate-pulse">
+                              <AlertCircle className="h-7 w-7 stroke-[2]" />
+                            </div>
+                            <div className="space-y-2">
+                              <h3 className="text-sm font-extrabold text-rose-600">❌ หลักฐานการโอนเงินไม่ผ่านการอนุมัติ</h3>
+                              <p className="text-xs text-slate-500 font-semibold leading-relaxed">
+                                บัญชี <span className="text-indigo-600 font-bold underline font-mono">{user.email}</span>
+                              </p>
+                              <div className="text-[11px] leading-relaxed bg-rose-50/50 p-4 rounded-2xl border border-rose-100 text-left text-slate-600">
+                                <span className="font-bold text-rose-700">แจ้งเตือนจากแอดมิน:</span> สลิปหลักฐานโอนเงินล่าสุดของท่านไม่ถูกต้องหรือส่งผิดรูปภาพ ท่านสามารถกดปุ่มสีแดงด้านล่างเพื่ออัปโหลดส่งรูปภาพสลิปใบที่ถูกต้องใหม่อีกครั้งเพื่อรับการอนุมัติสิทธิ์พรีเมียมคอร์ส (99.- ตลอดชีพ)
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-2.5">
+                              <button
+                                id="payment-trigger-trial"
+                                onClick={() => setShowPayment(true)}
+                                className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-rose-600 text-xs font-bold text-white hover:bg-rose-500 transition-all shadow-xs cursor-pointer"
+                              >
+                                <CreditCard className="h-4.5 w-4.5" />
+                                <span>แนบรูปภาพสลิปโอนเงินใบใหม่ในระบบ</span>
+                              </button>
+                              <a
+                                id="line-trigger-trial"
+                                href="https://line.me"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-500 transition-colors shadow-xs cursor-pointer"
+                              >
+                                💬 สอบถามเพิ่มเติมผ่าน LINE
+                              </a>
+                              <button
+                                id="signout-trigger-trial"
+                                onClick={() => logOut()}
+                                className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-800 transition-all cursor-pointer font-bold"
+                              >
+                                ออกจากระบบเพื่อเข้าบัญชีอื่น
+                              </button>
+                            </div>
+                            <div className="text-[10px] text-rose-500 font-bold">
+                              สถานะ: สลิปไม่ผ่านการอนุมัติ • รอแนบสลิปใบใหม่
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-50 text-amber-500 border border-amber-100 animate-pulse">
+                              <Clock className="h-7 w-7 stroke-[2]" />
+                            </div>
+                            <div className="space-y-2">
+                              <h3 className="text-sm font-extrabold text-slate-900">🕒 อยู่ระหว่างการตรวจสอบสิทธิ์การใช้งาน</h3>
+                              <p className="text-xs text-slate-500 font-semibold leading-relaxed">
+                                บัญชีของคุณ <span className="text-indigo-600 font-bold underline font-mono">{user.email}</span> ลงทะเบียนสมบูรณ์แล้ว
+                              </p>
+                              <div className="text-[11px] text-slate-500 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100 text-left text-slate-600">
+                                แอดมินต้องการตรวจสอบหลักฐานสลิปการชำระเงินของท่าน เพื่อสับเปลี่ยนเปิดให้เข้าใช้งานกลุ่มพรีเมียมคอร์ส (99.- ตลอดชีพ)
+                                <br /><br />
+                                หากท่านโอนเงินสมัครแล้วและส่งสลิปหลักฐานเข้ามาในระบบแล้ว กรุณารอสักครู่ แอดมินกำลังเร่งตรวจสอบและจะตอบรับสิทธิ์ของท่านโดยเร็วที่สุด!
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-2.5">
+                              <button
+                                id="payment-trigger-trial"
+                                onClick={() => setShowPayment(true)}
+                                className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-500 transition-all shadow-xs cursor-pointer"
+                              >
+                                <CreditCard className="h-4.5 w-4.5" />
+                                <span>สแกน QR Code และแนบสลิปแจ้งสิทธิ์ในระบบ</span>
+                              </button>
+                              <a
+                                id="line-trigger-trial"
+                                href="https://line.me"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-500 transition-colors shadow-xs cursor-pointer"
+                              >
+                                💬 ติดต่อแอดมินด่วนผ่าน LINE อนุมัติสิทธิ์
+                              </a>
+                              <button
+                                id="signout-trigger-trial"
+                                onClick={() => logOut()}
+                                className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-800 transition-all cursor-pointer font-bold"
+                              >
+                                ออกจากระบบเพื่อเข้าบัญชีอื่น
+                              </button>
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-bold">
+                              ระดับสิทธิ์: บัญชีผู้สอบค้างอนุมัติชั่วคราว • กรุณารอสักครู่
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
 
@@ -829,6 +893,7 @@ export default function App() {
       <footer className="bg-white border-t border-slate-100 py-6 text-center">
         <p className="text-xs text-slate-400">© 2026 แบบฝึกหัดครูผู้ช่วย. พัฒนาขึ้นด้วยระบบประเมินอัจฉริยะ • มั่นคง ปลอดภัย ด้วยระบบเทคโนโลยีวิเคราะห์ข้อมูลมาตรฐานสูง</p>
       </footer>
+      </div>
 
       {/* Account Settings Dialog (Requirement 3) */}
       <SettingsModal

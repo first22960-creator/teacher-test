@@ -24,7 +24,8 @@ import {
   orderBy,
   serverTimestamp,
   getDocFromServer,
-  arrayUnion
+  arrayUnion,
+  limit
 } from "firebase/firestore";
 import { Category, Quiz, Question, Attempt } from "../types";
 import firebaseConfig from "@/firebase-applet-config.json";
@@ -618,6 +619,17 @@ export async function submitPayment(details: PaymentDetails): Promise<string> {
       createdAt: serverTimestamp()
     };
     await setDoc(doc(db, "payments", paymentId), payload);
+
+    // If there is an active logged-in user, reset their approved status to false (pending review)
+    const user = auth.currentUser;
+    if (user) {
+      try {
+        await updateDoc(doc(db, "users", user.uid), { approved: false, paymentStatus: "pending" });
+      } catch (profileErr) {
+        console.warn("Failed to reset user approval state inside submitPayment:", profileErr);
+      }
+    }
+
     return paymentId;
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, path);
@@ -656,10 +668,14 @@ export async function deletePayment(paymentId: string): Promise<void> {
   }
 }
 
-export async function updateUserApproval(userId: string, approved: boolean): Promise<void> {
+export async function updateUserApproval(userId: string, approved: boolean, paymentStatus?: string): Promise<void> {
   const path = `users/${userId}`;
   try {
-    await updateDoc(doc(db, "users", userId), { approved });
+    const updatePayload: any = { approved };
+    if (paymentStatus !== undefined) {
+      updatePayload.paymentStatus = paymentStatus;
+    }
+    await updateDoc(doc(db, "users", userId), updatePayload);
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
@@ -787,6 +803,200 @@ export async function deleteNotification(notificationId: string): Promise<void> 
   try {
     await deleteDoc(doc(db, "notifications", notificationId));
   } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+// ----------------------------------------------------
+// New Advanced Functions: Edit Quiz & Admin Permissions
+// ----------------------------------------------------
+
+export async function updateQuiz(
+  quizId: string,
+  categoryId: string,
+  title: string,
+  description: string,
+  timeLimit: number,
+  questions: Omit<Question, "createdAt">[],
+  isFree?: boolean
+): Promise<void> {
+  const path = `quizzes/${quizId}`;
+  try {
+    // Update main fields
+    await updateDoc(doc(db, "quizzes", quizId), {
+      categoryId,
+      title,
+      description,
+      timeLimit: Number(timeLimit),
+      questionsCount: questions.length,
+      isFree: !!isFree
+    });
+
+    // Delete existing questions inside the subcollection
+    const qSnapshot = await getDocs(collection(db, "quizzes", quizId, "questions"));
+    for (const d of qSnapshot.docs) {
+      await deleteDoc(d.ref);
+    }
+
+    // Add new questions to subcollection
+    const questionsPath = `quizzes/${quizId}/questions`;
+    for (const q of questions) {
+      const qId = doc(collection(db, questionsPath)).id;
+      const qPayload = {
+        text: q.text,
+        options: q.options,
+        correctIndex: Number(q.correctIndex),
+        explanation: q.explanation || "",
+        createdAt: serverTimestamp()
+      };
+      await setDoc(doc(db, "quizzes", quizId, "questions", qId), qPayload);
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+export async function updateAdminPermissions(
+  userId: string,
+  permissions: { createQuiz: boolean; createAnnouncement: boolean; deleteQuiz: boolean; }
+): Promise<void> {
+  const path = `users/${userId}`;
+  try {
+    await updateDoc(doc(db, "users", userId), { adminPermissions: permissions });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+// ----------------------------------------------------
+// Support Chat Real-time Operations (Requirement 7)
+// ----------------------------------------------------
+
+export async function sendSupportMessage(
+  chatUserId: string,
+  displayUserName: string,
+  text: string,
+  senderRole: "user" | "admin"
+) {
+  const path = `support_chats/${chatUserId}`;
+  try {
+    const chatRef = doc(db, "support_chats", chatUserId);
+    const user = auth.currentUser;
+    if (!user) throw new Error("Authentication required");
+
+    const messagePayload = {
+      text,
+      senderId: user.uid,
+      senderName: user.displayName || user.email?.split("@")[0] || "ผู้สนับสนุน",
+      senderRole,
+      createdAt: serverTimestamp()
+    };
+
+    const messagesCollectionRef = collection(db, "support_chats", chatUserId, "messages");
+    await addDoc(messagesCollectionRef, messagePayload);
+
+    await setDoc(chatRef, {
+      userId: chatUserId,
+      userName: displayUserName,
+      userEmail: user.email || "",
+      lastMessageText: text,
+      lastMessageAt: serverTimestamp(),
+      ...(senderRole === "user" 
+        ? { unreadByAdmin: true } 
+        : { unreadByUser: true })
+    }, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export function subscribeToUserMessages(chatUserId: string, callback: (messages: any[]) => void) {
+  const path = `support_chats/${chatUserId}/messages`;
+  const q = query(
+    collection(db, "support_chats", chatUserId, "messages"),
+    orderBy("createdAt", "asc")
+  );
+  return onSnapshot(q, (snapshot) => {
+    const list = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    callback(list);
+  }, (err) => {
+    console.error("Error subscribing to messages:", err);
+    handleFirestoreError(err, OperationType.LIST, path);
+  });
+}
+
+export function subscribeToAllChats(callback: (chats: any[]) => void) {
+  const path = "support_chats";
+  const q = query(
+    collection(db, "support_chats"),
+    orderBy("lastMessageAt", "desc")
+  );
+  return onSnapshot(q, (snapshot) => {
+    const list = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    callback(list);
+  }, (err) => {
+    console.error("Error subscribing to all chats:", err);
+    handleFirestoreError(err, OperationType.LIST, path);
+  });
+}
+
+export async function markChatAsReadInDB(chatUserId: string, role: "user" | "admin") {
+  const path = `support_chats/${chatUserId}`;
+  try {
+    const chatRef = doc(db, "support_chats", chatUserId);
+    const snap = await getDoc(chatRef);
+    if (snap.exists()) {
+      const updateField = role === "admin" ? { unreadByAdmin: false } : { unreadByUser: false };
+      await updateDoc(chatRef, updateField);
+    }
+  } catch (err) {
+    console.warn("Failed to mark chat as read:", err);
+  }
+}
+
+export async function deleteSupportChat(chatUserId: string): Promise<void> {
+  const path = `support_chats/${chatUserId}`;
+  try {
+    // Delete all messages in the subcollection first
+    const messagesRef = collection(db, "support_chats", chatUserId, "messages");
+    const snapshot = await getDocs(messagesRef);
+    const deletePromises = snapshot.docs.map(docRef => deleteDoc(docRef.ref));
+    await Promise.all(deletePromises);
+
+    // Delete the chat document
+    await deleteDoc(doc(db, "support_chats", chatUserId));
+  } catch (error) {
+    console.error("Failed to delete support chat:", error);
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export async function deleteSupportMessage(chatUserId: string, messageId: string): Promise<void> {
+  const path = `support_chats/${chatUserId}/messages/${messageId}`;
+  try {
+    await deleteDoc(doc(db, "support_chats", chatUserId, "messages", messageId));
+
+    // Update the parent support_chat if there are newer messages
+    const messagesRef = collection(db, "support_chats", chatUserId, "messages");
+    const qSnapshot = await getDocs(query(messagesRef, orderBy("createdAt", "desc"), limit(1)));
+    if (!qSnapshot.empty) {
+      const latestMsg = qSnapshot.docs[0].data();
+      await updateDoc(doc(db, "support_chats", chatUserId), {
+        lastMessageText: latestMsg.text,
+        lastMessageAt: latestMsg.createdAt || serverTimestamp()
+      });
+    } else {
+      // If no messages left, delete the empty support_chat document as well so it doesn't linger in list
+      await deleteDoc(doc(db, "support_chats", chatUserId));
+    }
+  } catch (error) {
+    console.error("Failed to delete support message:", error);
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
