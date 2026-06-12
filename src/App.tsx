@@ -49,6 +49,15 @@ export default function App() {
     return null;
   });
 
+  const [isSessionConfirmed, setIsSessionConfirmed] = useState(false);
+  const isSessionConfirmedRef = React.useRef(false);
+
+  const setSessionConfirmed = (val: boolean) => {
+    setIsSessionConfirmed(val);
+    isSessionConfirmedRef.current = val;
+    console.log("[Active Session Check] in-memory session confirmation updated to:", val);
+  };
+
   // Sidebar expanded/collapsed state synchronized with localStorage
   const [sidebarExpanded, setSidebarExpanded] = useState(() => {
     return localStorage.getItem("sidebarExpanded") !== "false";
@@ -73,12 +82,16 @@ export default function App() {
       setAuthError("");
       setSessionWarning(null);
       localStorage.removeItem("session_terminated_reason");
+      setSessionConfirmed(false);
 
       // Generate fresh active session ID
       const newSessionId = "sess_" + Math.random().toString(36).substring(2, 15) + "_" + Date.now();
       localStorage.setItem("exam_active_session_id", newSessionId);
+      localStorage.setItem("session_write_status", "pending");
+      console.log("[Google Sign-in Click] Initiated with new session ID:", newSessionId);
 
       await signInWithGoogle();
+      console.log("[Google Sign-in Click] Completed google authentication successfully.");
     } catch (err: any) {
       console.error("Sign in failed:", err);
       setAuthError(err?.message || "เข้าสู่ระบบด้วย Google ขัดข้อง");
@@ -94,6 +107,7 @@ export default function App() {
     setAuthSuccess("");
     setSessionWarning(null);
     localStorage.removeItem("session_terminated_reason");
+    setSessionConfirmed(false);
 
     if (!email || !password) {
       setAuthError("กรุณากรอกอีเมลและรหัสผ่าน");
@@ -106,6 +120,8 @@ export default function App() {
       // Generate fresh active session ID
       const newSessionId = "sess_" + Math.random().toString(36).substring(2, 15) + "_" + Date.now();
       localStorage.setItem("exam_active_session_id", newSessionId);
+      localStorage.setItem("session_write_status", "pending");
+      console.log("[Email Authentication Submit] Initiated with new session ID:", newSessionId);
 
       if (authMode === "signup") {
         if (!nameField.trim()) {
@@ -197,6 +213,7 @@ export default function App() {
   useEffect(() => {
     if (!user) {
       setUserProfile(null);
+      setSessionConfirmed(false);
       return;
     }
     let timer: any = null;
@@ -227,15 +244,27 @@ export default function App() {
         const localSessionId = localStorage.getItem("exam_active_session_id");
         const sessionWriteStatus = localStorage.getItem("session_write_status");
 
+        console.log("[Active Session Check] local:", localSessionId, "db:", profile.activeSessionId, "status:", sessionWriteStatus, "confirmedRef:", isSessionConfirmedRef.current);
+
         if (localSessionId && profile.activeSessionId) {
           if (profile.activeSessionId === localSessionId) {
+            console.log("[Active Session Check] Match! Session is now confirmed.");
+            setSessionConfirmed(true);
             localStorage.setItem("session_write_status", "confirmed");
-          } else if (sessionWriteStatus !== "pending") {
-            console.warn("Session invalidated because another device logged in.");
-            localStorage.setItem("session_terminated_reason", "another_device");
-            setSessionWarning("Your account has been logged in from another device. Please log in again.");
-            logOut(true);
-            return;
+          } else {
+            // We only trigger forced logout if the session was previously confirmed OR the local state is not pending
+            const isConfirmed = isSessionConfirmedRef.current || sessionWriteStatus === "confirmed";
+            const isNotPending = sessionWriteStatus !== "pending";
+
+            if (isConfirmed || isNotPending) {
+              console.warn("[Active Session Check] Mismatch detected and session is considered active. Logging out. db:", profile.activeSessionId, "local:", localSessionId);
+              localStorage.setItem("session_terminated_reason", "another_device");
+              setSessionWarning("Your account has been logged in from another device. Please log in again.");
+              logOut(true);
+              return;
+            } else {
+              console.log("[Active Session Check] Mismatch ignored because session is still pending write / confirmation.");
+            }
           }
         }
       }

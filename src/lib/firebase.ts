@@ -107,6 +107,7 @@ export function initFreshSession() {
     localStorage.setItem("exam_active_session_id", newSessionId);
     localStorage.setItem("session_write_status", "pending");
     localStorage.removeItem("session_terminated_reason");
+    console.log("[Firebase Session] Created fresh session:", newSessionId);
     return newSessionId;
   }
   return null;
@@ -114,14 +115,17 @@ export function initFreshSession() {
 
 export async function signInWithGoogle() {
   if (activeSignInPromise) {
+    console.log("[Firebase Auth] Returning active login promise in-flight.");
     return activeSignInPromise;
   }
 
-  initFreshSession();
+  const freshSess = initFreshSession();
+  console.log("[Firebase Auth] Starting Google Sign-In popup with fresh session:", freshSess);
 
   activeSignInPromise = (async () => {
     try {
       const result = await signInWithPopup(auth, googleProvider);
+      console.log("[Firebase Auth] Google Sign-In popup succeeded for user:", result.user?.email);
       return result.user;
     } catch (error: any) {
       const errCode = error?.code || "";
