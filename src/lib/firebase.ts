@@ -155,12 +155,7 @@ export async function signInWithGoogle() {
 // UI trigger: Logout
 export async function logOut(isForced: boolean = false) {
   try {
-    const user = auth.currentUser;
-    if (user) {
-      // Set status offline in Firestore before signing out
-      const path = `users/${user.uid}`;
-      await setDoc(doc(db, "users", user.uid), { status: "offline", lastSeenAt: new Date().toISOString() }, { merge: true });
-    }
+    // Clear localStorage immediately at the very start to prevent stale active state or race conditions
     if (typeof window !== "undefined") {
       localStorage.removeItem("exam_active_session_id");
       localStorage.removeItem("session_write_status");
@@ -168,9 +163,25 @@ export async function logOut(isForced: boolean = false) {
         localStorage.removeItem("session_terminated_reason");
       }
     }
+
+    const user = auth.currentUser;
+    if (user) {
+      // Set status offline in Firestore before signing out, but do not let its failure block the logout flow
+      try {
+        await setDoc(doc(db, "users", user.uid), { status: "offline", lastSeenAt: new Date().toISOString() }, { merge: true });
+      } catch (firestoreErr) {
+        console.warn("Non-fatal: Failed to update offline status in Firestore during logout:", firestoreErr);
+      }
+    }
+    
     await signOut(auth);
   } catch (error) {
     console.error("Logout failed:", error);
+    // As a absolute fallback, make sure localStorage is clean
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("exam_active_session_id");
+      localStorage.removeItem("session_write_status");
+    }
     throw error;
   }
 }
@@ -394,7 +405,7 @@ export async function fetchUserAttempts(): Promise<Attempt[]> {
 // ----------------------------------------------------
 import { onSnapshot } from "firebase/firestore";
 
-export async function saveUserProfile(user: any, status: string = "online") {
+export async function saveUserProfile(user: any, status: string = "online", sessionId?: string | null) {
   if (!user) return;
   try {
     const profileDocRef = doc(db, "users", user.uid);
@@ -418,7 +429,7 @@ export async function saveUserProfile(user: any, status: string = "online") {
       return;
     }
 
-    const localSessionId = typeof window !== "undefined" ? localStorage.getItem("exam_active_session_id") : null;
+    const localSessionId = sessionId || (typeof window !== "undefined" ? localStorage.getItem("exam_active_session_id") : null);
     const payload: any = {
       uid: user.uid,
       email: user.email || "",
@@ -491,7 +502,7 @@ export async function deleteUserAccount(userId: string): Promise<void> {
 }
 
 // Email & password Authentication support with Admin Approval flow
-export async function signUpWithEmailAndPassword(email: string, password: string, displayName: string) {
+export async function signUpWithEmailAndPassword(email: string, password: string, displayName: string, sessionId?: string | null) {
   try {
     initFreshSession();
     const credential = await createUserWithEmailAndPassword(auth, email, password);
@@ -501,7 +512,7 @@ export async function signUpWithEmailAndPassword(email: string, password: string
     const isSystemAdmin = email.toLowerCase() === "first22960@gmail.com";
     const approvedStatus = isSystemAdmin ? true : false;
 
-    const localSessionId = typeof window !== "undefined" ? localStorage.getItem("exam_active_session_id") : null;
+    const localSessionId = sessionId || (typeof window !== "undefined" ? localStorage.getItem("exam_active_session_id") : null);
     // Save custom profile field: approved and plainPassword in Firestore
     await setDoc(doc(db, "users", user.uid), {
       uid: user.uid,
@@ -534,7 +545,7 @@ export async function signUpWithEmailAndPassword(email: string, password: string
   }
 }
 
-export async function signInWithEmailPassword(email: string, password: string) {
+export async function signInWithEmailPassword(email: string, password: string, sessionId?: string | null) {
   try {
     initFreshSession();
     const credential = await signInWithEmailAndPassword(auth, email, password);
@@ -558,7 +569,7 @@ export async function signInWithEmailPassword(email: string, password: string) {
       throw new Error("บัญชีผู้ใช้ของคุณนี้ได้ถูกยกเลิกสิทธิ์และลบออกจากระบบแล้ว กรุณาลงทะเบียนสมัครใหม่อีกครั้ง");
     }
 
-    const localSessionId = typeof window !== "undefined" ? localStorage.getItem("exam_active_session_id") : null;
+    const localSessionId = sessionId || (typeof window !== "undefined" ? localStorage.getItem("exam_active_session_id") : null);
     // Write lastSeenAt and plainPassword
     await setDoc(doc(db, "users", user.uid), {
       lastSeenAt: new Date().toISOString(),

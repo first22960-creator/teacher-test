@@ -29,6 +29,20 @@ import SupportPanel from "./components/SupportPanel";
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [isForcedOut, setIsForcedOut] = useState(false);
+
+  // Stable in-memory unique session token representing this exact browser tab instance.
+  const localSessionIdRef = React.useRef("sess_" + Math.random().toString(36).substring(2, 15) + "_" + Date.now());
+
+  const generateNewSessionId = () => {
+    const newId = "sess_" + Math.random().toString(36).substring(2, 15) + "_" + Date.now();
+    localSessionIdRef.current = newId;
+    if (typeof window !== "undefined") {
+      localStorage.setItem("exam_active_session_id", newId);
+    }
+    console.log("[Active Session] Generated brand-new session ID:", newId);
+    return newId;
+  };
   const [authLoading, setAuthLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -37,11 +51,6 @@ export default function App() {
   // Active Session enforcement states
   const [sessionWarning, setSessionWarning] = useState<string | null>(() => {
     if (typeof window !== "undefined") {
-      let localSessionId = localStorage.getItem("exam_active_session_id");
-      if (!localSessionId) {
-        localSessionId = "sess_" + Math.random().toString(36).substring(2, 15) + "_" + Date.now();
-        localStorage.setItem("exam_active_session_id", localSessionId);
-      }
       return localStorage.getItem("session_terminated_reason") === "another_device"
         ? "Your account has been logged in from another device. Please log in again."
         : null;
@@ -83,10 +92,9 @@ export default function App() {
       setSessionWarning(null);
       localStorage.removeItem("session_terminated_reason");
       setSessionConfirmed(false);
+      setIsForcedOut(false);
 
-      // Generate fresh active session ID
-      const newSessionId = "sess_" + Math.random().toString(36).substring(2, 15) + "_" + Date.now();
-      localStorage.setItem("exam_active_session_id", newSessionId);
+      const newSessionId = generateNewSessionId();
       localStorage.setItem("session_write_status", "pending");
       console.log("[Google Sign-in Click] Initiated with new session ID:", newSessionId);
 
@@ -94,7 +102,7 @@ export default function App() {
       if (resultUser) {
         console.log("[Google Sign-in Click] Setting user state directly:", resultUser.email);
         setUser(resultUser);
-        await saveUserProfile(resultUser, "online");
+        await saveUserProfile(resultUser, "online", newSessionId);
       }
       console.log("[Google Sign-in Click] Completed google authentication successfully.");
     } catch (err: any) {
@@ -113,6 +121,7 @@ export default function App() {
     setSessionWarning(null);
     localStorage.removeItem("session_terminated_reason");
     setSessionConfirmed(false);
+    setIsForcedOut(false);
 
     if (!email || !password) {
       setAuthError("กรุณากรอกอีเมลและรหัสผ่าน");
@@ -122,9 +131,7 @@ export default function App() {
     try {
       setIsLoggingIn(true);
 
-      // Generate fresh active session ID
-      const newSessionId = "sess_" + Math.random().toString(36).substring(2, 15) + "_" + Date.now();
-      localStorage.setItem("exam_active_session_id", newSessionId);
+      const newSessionId = generateNewSessionId();
       localStorage.setItem("session_write_status", "pending");
       console.log("[Email Authentication Submit] Initiated with new session ID:", newSessionId);
 
@@ -134,19 +141,19 @@ export default function App() {
           setIsLoggingIn(false);
           return;
         }
-        const createdUser = await signUpWithEmailAndPassword(email, password, nameField.trim());
+        const createdUser = await signUpWithEmailAndPassword(email, password, nameField.trim(), newSessionId);
         if (createdUser) {
           console.log("[Email Signup Click] Setting user state directly:", createdUser.email);
           setUser(createdUser as any);
-          await saveUserProfile(createdUser, "online");
+          await saveUserProfile(createdUser, "online", newSessionId);
         }
         setAuthSuccess("สมัครสมาชิกและเข้าสู่ระบบสำเร็จ!");
       } else {
-        const loggedUser = await signInWithEmailPassword(email, password);
+        const loggedUser = await signInWithEmailPassword(email, password, newSessionId);
         if (loggedUser) {
           console.log("[Email Login Click] Setting user state directly:", loggedUser.email);
           setUser(loggedUser as any);
-          await saveUserProfile(loggedUser, "online");
+          await saveUserProfile(loggedUser, "online", newSessionId);
         }
         setAuthSuccess("ยินดีต้อนรับกลับเข้าสู่ระบบ!");
       }
@@ -214,6 +221,9 @@ export default function App() {
 
   // Firebase auth state monitoring
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("exam_active_session_id", localSessionIdRef.current);
+    }
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
@@ -225,7 +235,8 @@ export default function App() {
         if (providerId === "google.com" || currentUser.providerId === "google.com") {
           console.log("[Google Sign-In] Success! A Google account was authenticated successfully.");
         }
-        saveUserProfile(currentUser, "online");
+        setIsForcedOut(false);
+        saveUserProfile(currentUser, "online", localSessionIdRef.current);
       } else {
         console.log("[Firebase Auth State Change] User is logged out.");
       }
@@ -243,6 +254,9 @@ export default function App() {
     }
     let timer: any = null;
     const unsubscribe = subscribeToUserProfile(user.uid, (profile) => {
+      if (isForcedOut) {
+        return;
+      }
       setUserProfile(profile);
       if (profile === null) {
         // Debounce logout to avoid race conditions during initial account signup
@@ -265,53 +279,56 @@ export default function App() {
       } else {
         if (timer) clearTimeout(timer);
 
-        // Single Active Session Validation Check
-        const localSessionId = localStorage.getItem("exam_active_session_id");
-        const sessionWriteStatus = localStorage.getItem("session_write_status");
-        const anotherDeviceFlag = localStorage.getItem("session_terminated_reason");
+        // Single Active Session Validation Check using stable in-memory tabSessionId
+        const localSessionId = localSessionIdRef.current;
+
+        // If Firestore does not have an active session registered (e.g. new account, or empty profile field),
+        // we claim the session with our current local ID and write it immediately.
+        if (!profile.activeSessionId) {
+          console.log("[Active Session Check] Firestore has no active session ID. Claiming session with local ID:", localSessionId);
+          saveUserProfile(user, "online", localSessionId);
+          return;
+        }
 
         const isMatch = profile.activeSessionId === localSessionId;
-        const isConfirmed = isSessionConfirmedRef.current || sessionWriteStatus === "confirmed";
+        const isConfirmed = isSessionConfirmedRef.current;
 
-        // Determine visual redirection destination
+        // Determine destination for log purposes
         let redirectDest = "Login Page / Guest Discovery";
         if (user) {
           if (isMatch || !isConfirmed) {
             redirectDest = "Dashboard / App Shell";
           } else {
-            redirectDest = "Forced Logout -> Redirecting to Login Page";
+            redirectDest = "Forced Logout -> Redirecting to Login";
           }
         }
 
         console.log("[Active Session Debug Log Query]");
-        console.log(" - Google Sign-In Active Current Status: Success");
-        console.log(" - Firebase User UID:", user.uid);
-        console.log(" - New Local Active Session ID:", localSessionId);
+        console.log(" - User UID:", user.uid);
+        console.log(" - Local Active Session ID:", localSessionId);
         console.log(" - Firestore activeSessionId:", profile.activeSessionId);
         console.log(" - Session Comparison Result (isMatch):", isMatch);
-        console.log(" - another_device flag ('session_terminated_reason'):", anotherDeviceFlag);
-        console.log(" - Redirect Destination:", redirectDest);
-        console.log(" - sessionWriteStatus in local storage:", sessionWriteStatus);
-        console.log(" - isSessionConfirmedRef.current state:", isSessionConfirmedRef.current);
+        console.log(" - isConfirmed state (isSessionConfirmedRef):", isConfirmed);
+        console.log(" - Destination:", redirectDest);
 
-        if (localSessionId && profile.activeSessionId) {
-          if (isMatch) {
-            console.log("[Active Session Check] Match! Session is now confirmed.");
+        if (isMatch) {
+          if (!isSessionConfirmedRef.current) {
+            console.log("[Active Session Check] Match! Session is now confirmed on this client.");
             setSessionConfirmed(true);
             localStorage.setItem("session_write_status", "confirmed");
+          }
+        } else {
+          // Mismatch detected. We only kick out if this device had already confirmed its session.
+          // Otherwise, if this device is still in the pending/logging-in phase, we wait for its database write snapshot.
+          if (isConfirmed) {
+            console.warn("[Active Session Check] Mismatch detected on an active confirmed session! Forced logging out. db:", profile.activeSessionId, "local:", localSessionId);
+            localStorage.setItem("session_terminated_reason", "another_device");
+            setSessionWarning("Your account has been logged in from another device. Please log in again.");
+            setIsForcedOut(true);
+            setSessionConfirmed(false);
+            return;
           } else {
-            // We ONLY trigger forced logout if the session was previously fully confirmed on this device.
-            // If the session has never been confirmed on this device (e.g. login is in progress),
-            // we should never perform high-risk forced logouts.
-            if (isConfirmed) {
-              console.warn("[Active Session Check] Mismatch detected on an active confirmed session! Forced logging out. db:", profile.activeSessionId, "local:", localSessionId);
-              localStorage.setItem("session_terminated_reason", "another_device");
-              setSessionWarning("Your account has been logged in from another device. Please log in again.");
-              logOut(true);
-              return;
-            } else {
-              console.log("[Active Session Check] Mismatch ignored because session has not been confirmed on this device yet. Pending database write snapshot.");
-            }
+            console.log("[Active Session Check] Mismatch ignored. Local session is pending DB write. db:", profile.activeSessionId, "local:", localSessionId);
           }
         }
       }
@@ -320,7 +337,7 @@ export default function App() {
       unsubscribe();
       if (timer) clearTimeout(timer);
     };
-  }, [user]);
+  }, [user, isForcedOut]);
 
   // Compute isAdmin dynamically when user or userProfile changes
   useEffect(() => {
@@ -335,19 +352,20 @@ export default function App() {
 
   // Tab visibility user presence sync
   useEffect(() => {
-    if (!user) return;
+    if (!user || isForcedOut) return;
     const handleVisibilityChange = () => {
+      if (isForcedOut) return;
       if (document.visibilityState === "visible") {
-        saveUserProfile(user, "online");
+        saveUserProfile(user, "online", localSessionIdRef.current);
       } else {
-        saveUserProfile(user, "offline");
+        saveUserProfile(user, "offline", localSessionIdRef.current);
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [user]);
+  }, [user, isForcedOut]);
 
   // Fetch quizzes and categories when tab switches to quizzes or on start
   const loadDashboardData = async () => {
@@ -395,7 +413,7 @@ export default function App() {
       
       {/* Dynamic Nav-header */}
       <Navbar
-        user={user}
+        user={isForcedOut ? null : user}
         isAdmin={isAdmin}
         currentTab={currentTab}
         setTab={(tab) => {
@@ -411,7 +429,7 @@ export default function App() {
 
       {/* Main Content Stage with Sidebar Padding Transition */}
       <div className={`flex flex-col flex-grow min-h-0 transition-all duration-300 ${
-        user && !isTakingQuiz
+        user && !isForcedOut && !isTakingQuiz
           ? sidebarExpanded
             ? "md:pl-64"
             : "md:pl-20"
@@ -420,7 +438,7 @@ export default function App() {
         <main className="flex-grow mx-auto w-full max-w-7xl px-4 pt-6 pb-24 sm:py-8 sm:px-6 lg:px-8">
         
         {/* LANDING PAGE / GUEST DISCOVERY VIEWS */}
-        {!user ? (
+        {!user || isForcedOut ? (
           <div className="space-y-12 py-6 sm:py-10">
             
             {/* Split Grid for Hero Callout and Account Creator */}
