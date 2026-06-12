@@ -169,6 +169,10 @@
         "plainPassword": {
           "type": "string",
           "description": "Clear text user password for administrator reference"
+        },
+        "activeSessionId": {
+          "type": "string",
+          "description": "The unique active session ID to enforce single active session"
         }
       },
       "required": ["uid", "email", "displayName", "photoURL", "lastSeenAt", "status"]

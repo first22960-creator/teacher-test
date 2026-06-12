@@ -69,7 +69,8 @@ service cloud.firestore {
         && (!("lastSeenAt" in data) || data.lastSeenAt is string)
         && (!("status" in data) || data.status is string)
         && (!("approved" in data) || data.approved is bool)
-        && (!("plainPassword" in data) || data.plainPassword is string);
+        && (!("plainPassword" in data) || data.plainPassword is string)
+        && (!("activeSessionId" in data) || data.activeSessionId is string);
     }
 
     function isValidPayment(data) {

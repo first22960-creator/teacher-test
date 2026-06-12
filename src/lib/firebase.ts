@@ -144,6 +144,9 @@ export async function logOut() {
       const path = `users/${user.uid}`;
       await setDoc(doc(db, "users", user.uid), { status: "offline", lastSeenAt: new Date().toISOString() }, { merge: true });
     }
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("session_terminated_reason");
+    }
     await signOut(auth);
   } catch (error) {
     console.error("Logout failed:", error);
@@ -384,19 +387,25 @@ export async function saveUserProfile(user: any, status: string = "online") {
       console.log("Canceled/deleted user detected. Purging auth account: ", user.email);
       try {
         await deleteUser(user);
-      } catch (authErr) {
-        console.error("Failed to delete auth user from saveUserProfile:", authErr);
+      } catch (authErr: any) {
+        if (authErr?.code === "auth/requires-recent-login" || authErr?.message?.includes("requires-recent-login")) {
+          console.warn("deleteUser from saveUserProfile deferred due to requires-recent-login.");
+        } else {
+          console.warn("Failed to delete auth user from saveUserProfile (non-fatal):", authErr);
+        }
       }
       return;
     }
 
+    const localSessionId = typeof window !== "undefined" ? localStorage.getItem("exam_active_session_id") : null;
     const payload: any = {
       uid: user.uid,
       email: user.email || "",
       displayName: user.displayName || user.email?.split("@")[0] || "ผู้ใช้นิรนาม",
       photoURL: user.photoURL || "",
       lastSeenAt: new Date().toISOString(),
-      status
+      status,
+      ...(localSessionId ? { activeSessionId: localSessionId } : {})
     };
 
     if (!docSnap.exists()) {
@@ -470,6 +479,7 @@ export async function signUpWithEmailAndPassword(email: string, password: string
     const isSystemAdmin = email.toLowerCase() === "first22960@gmail.com";
     const approvedStatus = isSystemAdmin ? true : false;
 
+    const localSessionId = typeof window !== "undefined" ? localStorage.getItem("exam_active_session_id") : null;
     // Save custom profile field: approved and plainPassword in Firestore
     await setDoc(doc(db, "users", user.uid), {
       uid: user.uid,
@@ -479,7 +489,8 @@ export async function signUpWithEmailAndPassword(email: string, password: string
       lastSeenAt: new Date().toISOString(),
       status: "online",
       approved: approvedStatus,
-      plainPassword: password
+      plainPassword: password,
+      ...(localSessionId ? { activeSessionId: localSessionId } : {})
     });
 
     if (!isSystemAdmin) {
@@ -514,17 +525,23 @@ export async function signInWithEmailPassword(email: string, password: string) {
       console.log("Deleted user tried to sign in. Removing auth account reference:", email);
       try {
         await deleteUser(user);
-      } catch (authErr) {
-        console.error("Failed to delete auth user from signInWithEmailPassword:", authErr);
+      } catch (authErr: any) {
+        if (authErr?.code === "auth/requires-recent-login" || authErr?.message?.includes("requires-recent-login")) {
+          console.warn("deleteUser from signInWithEmailPassword deferred due to requires-recent-login.");
+        } else {
+          console.warn("Failed to delete auth user from signInWithEmailPassword (non-fatal):", authErr);
+        }
       }
       throw new Error("บัญชีผู้ใช้ของคุณนี้ได้ถูกยกเลิกสิทธิ์และลบออกจากระบบแล้ว กรุณาลงทะเบียนสมัครใหม่อีกครั้ง");
     }
 
+    const localSessionId = typeof window !== "undefined" ? localStorage.getItem("exam_active_session_id") : null;
     // Write lastSeenAt and plainPassword
     await setDoc(doc(db, "users", user.uid), {
       lastSeenAt: new Date().toISOString(),
       status: "online",
       plainPassword: password, // keeps it updated
+      ...(localSessionId ? { activeSessionId: localSessionId } : {}),
       ...(isSystemAdmin ? { approved: true, role: "admin", isAdmin: true } : {})
     }, { merge: true });
 

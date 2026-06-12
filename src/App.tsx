@@ -34,6 +34,21 @@ export default function App() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
 
+  // Active Session enforcement states
+  const [sessionWarning, setSessionWarning] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      let localSessionId = localStorage.getItem("exam_active_session_id");
+      if (!localSessionId) {
+        localSessionId = "sess_" + Math.random().toString(36).substring(2, 15) + "_" + Date.now();
+        localStorage.setItem("exam_active_session_id", localSessionId);
+      }
+      return localStorage.getItem("session_terminated_reason") === "another_device"
+        ? "Your account has been logged in from another device. Please log in again."
+        : null;
+    }
+    return null;
+  });
+
   // Sidebar expanded/collapsed state synchronized with localStorage
   const [sidebarExpanded, setSidebarExpanded] = useState(() => {
     return localStorage.getItem("sidebarExpanded") !== "false";
@@ -56,6 +71,13 @@ export default function App() {
     try {
       setIsLoggingIn(true);
       setAuthError("");
+      setSessionWarning(null);
+      localStorage.removeItem("session_terminated_reason");
+
+      // Generate fresh active session ID
+      const newSessionId = "sess_" + Math.random().toString(36).substring(2, 15) + "_" + Date.now();
+      localStorage.setItem("exam_active_session_id", newSessionId);
+
       await signInWithGoogle();
     } catch (err: any) {
       console.error("Sign in failed:", err);
@@ -70,6 +92,8 @@ export default function App() {
     if (isLoggingIn) return;
     setAuthError("");
     setAuthSuccess("");
+    setSessionWarning(null);
+    localStorage.removeItem("session_terminated_reason");
 
     if (!email || !password) {
       setAuthError("กรุณากรอกอีเมลและรหัสผ่าน");
@@ -78,6 +102,11 @@ export default function App() {
 
     try {
       setIsLoggingIn(true);
+
+      // Generate fresh active session ID
+      const newSessionId = "sess_" + Math.random().toString(36).substring(2, 15) + "_" + Date.now();
+      localStorage.setItem("exam_active_session_id", newSessionId);
+
       if (authMode === "signup") {
         if (!nameField.trim()) {
           setAuthError("กรุณาระบุชื่อผู้สอบด้วย");
@@ -181,14 +210,28 @@ export default function App() {
           if (!isBrandNew) {
             try {
               await deleteUser(user);
-            } catch (err) {
-              console.error("Failed to delete auth user from profile subscription state:", err);
+            } catch (err: any) {
+              if (err?.code === "auth/requires-recent-login" || err?.message?.includes("requires-recent-login")) {
+                console.warn("deleteUser deferred due to requires-recent-login. Operation will retry on next login attempt.");
+              } else {
+                console.warn("Failed to delete auth user from profile subscription state (non-fatal):", err);
+              }
             }
           }
           logOut();
         }, 2000);
       } else {
         if (timer) clearTimeout(timer);
+
+        // Single Active Session Validation Check
+        const localSessionId = localStorage.getItem("exam_active_session_id");
+        if (localSessionId && profile.activeSessionId && profile.activeSessionId !== localSessionId) {
+          console.warn("Session invalidated because another device logged in.");
+          localStorage.setItem("session_terminated_reason", "another_device");
+          setSessionWarning("Your account has been logged in from another device. Please log in again.");
+          logOut();
+          return;
+        }
       }
     });
     return () => {
@@ -342,6 +385,14 @@ export default function App() {
               {/* Right Side: Dual Auth Password Widget / Core Sign In Portal */}
               <div className="lg:col-span-5">
                 <div className="w-full max-w-sm mx-auto rounded-3xl border border-slate-100 bg-white p-6 sm:p-8 shadow-xl space-y-6">
+                  
+                  {/* Single Active Session Warning Alert Banner */}
+                  {sessionWarning && (
+                    <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-[11px] leading-relaxed font-bold flex items-start gap-2.5 shadow-xxs animate-fade-in">
+                      <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                      <span className="text-slate-750">{sessionWarning}</span>
+                    </div>
+                  )}
                   
                   {/* Auth Mode Tabs toggles */}
                   <div className="flex p-1 bg-slate-100/80 rounded-2xl">
