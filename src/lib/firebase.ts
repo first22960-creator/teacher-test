@@ -876,7 +876,8 @@ export async function sendSupportMessage(
   chatUserId: string,
   displayUserName: string,
   text: string,
-  senderRole: "user" | "admin"
+  senderRole: "user" | "admin",
+  imageUrl?: string
 ) {
   const path = `support_chats/${chatUserId}`;
   try {
@@ -889,7 +890,8 @@ export async function sendSupportMessage(
       senderId: user.uid,
       senderName: user.displayName || user.email?.split("@")[0] || "ผู้สนับสนุน",
       senderRole,
-      createdAt: serverTimestamp()
+      createdAt: serverTimestamp(),
+      ...(imageUrl ? { imageUrl } : {})
     };
 
     const messagesCollectionRef = collection(db, "support_chats", chatUserId, "messages");
@@ -899,7 +901,7 @@ export async function sendSupportMessage(
       userId: chatUserId,
       userName: displayUserName,
       userEmail: user.email || "",
-      lastMessageText: text,
+      lastMessageText: imageUrl && !text ? "🖼️ แนบรูปภาพ" : text,
       lastMessageAt: serverTimestamp(),
       ...(senderRole === "user" 
         ? { unreadByAdmin: true } 
@@ -998,5 +1000,36 @@ export async function deleteSupportMessage(chatUserId: string, messageId: string
   } catch (error) {
     console.error("Failed to delete support message:", error);
     handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export async function resolveSupportChat(chatUserId: string): Promise<void> {
+  const path = `support_chats/${chatUserId}`;
+  try {
+    const chatRef = doc(db, "support_chats", chatUserId);
+    await updateDoc(chatRef, {
+      status: "resolved",
+      resolvedAt: serverTimestamp(),
+      unreadByAdmin: false,
+      unreadByUser: false
+    });
+  } catch (error) {
+    console.error("Failed to resolve support chat:", error);
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+export async function reopenSupportChat(chatUserId: string): Promise<void> {
+  const path = `support_chats/${chatUserId}`;
+  try {
+    const chatRef = doc(db, "support_chats", chatUserId);
+    await updateDoc(chatRef, {
+      status: "open",
+      resolvedAt: null,
+      unreadByAdmin: true
+    });
+  } catch (error) {
+    console.error("Failed to reopen support chat:", error);
+    handleFirestoreError(error, OperationType.UPDATE, path);
   }
 }

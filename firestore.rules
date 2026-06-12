@@ -86,14 +86,17 @@ service cloud.firestore {
         && (!("userEmail" in data) || (data.userEmail is string && data.userEmail.size() <= 200))
         && (!("lastMessageText" in data) || (data.lastMessageText is string && data.lastMessageText.size() <= 2000))
         && (!("unreadByAdmin" in data) || data.unreadByAdmin is bool)
-        && (!("unreadByUser" in data) || data.unreadByUser is bool);
+        && (!("unreadByUser" in data) || data.unreadByUser is bool)
+        && (!("status" in data) || (data.status is string && data.status.size() <= 60))
+        && (!("resolvedAt" in data) || (data.resolvedAt == null || data.resolvedAt is timestamp));
     }
 
     function isValidMessage(data) {
       return (!("text" in data) || (data.text is string && data.text.size() <= 2000))
         && (!("senderId" in data) || (data.senderId is string && data.senderId.size() <= 128))
         && (!("senderName" in data) || (data.senderName is string && data.senderName.size() <= 500))
-        && (!("senderRole" in data) || (data.senderRole is string && (data.senderRole == "user" || data.senderRole == "admin")));
+        && (!("senderRole" in data) || (data.senderRole is string && (data.senderRole == "user" || data.senderRole == "admin")))
+        && (!("imageUrl" in data) || (data.imageUrl is string && data.imageUrl.size() <= 2000000));
     }
 
     // Rules for each collection
