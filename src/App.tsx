@@ -90,7 +90,12 @@ export default function App() {
       localStorage.setItem("session_write_status", "pending");
       console.log("[Google Sign-in Click] Initiated with new session ID:", newSessionId);
 
-      await signInWithGoogle();
+      const resultUser = await signInWithGoogle();
+      if (resultUser) {
+        console.log("[Google Sign-in Click] Setting user state directly:", resultUser.email);
+        setUser(resultUser);
+        await saveUserProfile(resultUser, "online");
+      }
       console.log("[Google Sign-in Click] Completed google authentication successfully.");
     } catch (err: any) {
       console.error("Sign in failed:", err);
@@ -129,10 +134,20 @@ export default function App() {
           setIsLoggingIn(false);
           return;
         }
-        await signUpWithEmailAndPassword(email, password, nameField.trim());
+        const createdUser = await signUpWithEmailAndPassword(email, password, nameField.trim());
+        if (createdUser) {
+          console.log("[Email Signup Click] Setting user state directly:", createdUser.email);
+          setUser(createdUser as any);
+          await saveUserProfile(createdUser, "online");
+        }
         setAuthSuccess("สมัครสมาชิกและเข้าสู่ระบบสำเร็จ!");
       } else {
-        await signInWithEmailPassword(email, password);
+        const loggedUser = await signInWithEmailPassword(email, password);
+        if (loggedUser) {
+          console.log("[Email Login Click] Setting user state directly:", loggedUser.email);
+          setUser(loggedUser as any);
+          await saveUserProfile(loggedUser, "online");
+        }
         setAuthSuccess("ยินดีต้อนรับกลับเข้าสู่ระบบ!");
       }
     } catch (err: any) {
