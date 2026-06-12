@@ -225,12 +225,18 @@ export default function App() {
 
         // Single Active Session Validation Check
         const localSessionId = localStorage.getItem("exam_active_session_id");
-        if (localSessionId && profile.activeSessionId && profile.activeSessionId !== localSessionId) {
-          console.warn("Session invalidated because another device logged in.");
-          localStorage.setItem("session_terminated_reason", "another_device");
-          setSessionWarning("Your account has been logged in from another device. Please log in again.");
-          logOut();
-          return;
+        const sessionWriteStatus = localStorage.getItem("session_write_status");
+
+        if (localSessionId && profile.activeSessionId) {
+          if (profile.activeSessionId === localSessionId) {
+            localStorage.setItem("session_write_status", "confirmed");
+          } else if (sessionWriteStatus !== "pending") {
+            console.warn("Session invalidated because another device logged in.");
+            localStorage.setItem("session_terminated_reason", "another_device");
+            setSessionWarning("Your account has been logged in from another device. Please log in again.");
+            logOut(true);
+            return;
+          }
         }
       }
     });

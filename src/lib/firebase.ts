@@ -101,10 +101,23 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 // UI trigger: Google Sign In popup with robust single-flight promise lock to prevent duplicate concurrent popups (which causes auth/cancelled-popup-request) and graceful user cancel handling.
 let activeSignInPromise: Promise<any> | null = null;
 
+export function initFreshSession() {
+  if (typeof window !== "undefined") {
+    const newSessionId = "sess_" + Math.random().toString(36).substring(2, 15) + "_" + Date.now();
+    localStorage.setItem("exam_active_session_id", newSessionId);
+    localStorage.setItem("session_write_status", "pending");
+    localStorage.removeItem("session_terminated_reason");
+    return newSessionId;
+  }
+  return null;
+}
+
 export async function signInWithGoogle() {
   if (activeSignInPromise) {
     return activeSignInPromise;
   }
+
+  initFreshSession();
 
   activeSignInPromise = (async () => {
     try {
@@ -136,7 +149,7 @@ export async function signInWithGoogle() {
 }
 
 // UI trigger: Logout
-export async function logOut() {
+export async function logOut(isForced: boolean = false) {
   try {
     const user = auth.currentUser;
     if (user) {
@@ -145,7 +158,11 @@ export async function logOut() {
       await setDoc(doc(db, "users", user.uid), { status: "offline", lastSeenAt: new Date().toISOString() }, { merge: true });
     }
     if (typeof window !== "undefined") {
-      localStorage.removeItem("session_terminated_reason");
+      localStorage.removeItem("exam_active_session_id");
+      localStorage.removeItem("session_write_status");
+      if (!isForced) {
+        localStorage.removeItem("session_terminated_reason");
+      }
     }
     await signOut(auth);
   } catch (error) {
@@ -472,6 +489,7 @@ export async function deleteUserAccount(userId: string): Promise<void> {
 // Email & password Authentication support with Admin Approval flow
 export async function signUpWithEmailAndPassword(email: string, password: string, displayName: string) {
   try {
+    initFreshSession();
     const credential = await createUserWithEmailAndPassword(auth, email, password);
     const user = credential.user;
     await updateProfile(user, { displayName });
@@ -514,6 +532,7 @@ export async function signUpWithEmailAndPassword(email: string, password: string
 
 export async function signInWithEmailPassword(email: string, password: string) {
   try {
+    initFreshSession();
     const credential = await signInWithEmailAndPassword(auth, email, password);
     const user = credential.user;
     
