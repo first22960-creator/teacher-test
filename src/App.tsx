@@ -43,6 +43,42 @@ export default function App() {
     console.log("[Active Session] Generated brand-new session ID:", newId);
     return newId;
   };
+
+  const performForcedLogout = async () => {
+    console.warn("[Active Session Check] Mismatch detected ! Initiating hard forced sign out.");
+    try {
+      // 1. Immediately execute Firebase signOut
+      const { signOut } = await import("firebase/auth");
+      await signOut(auth);
+
+      // 2. Clear all local authentication state
+      setUser(null);
+      setUserProfile(null);
+      setAttempts([]);
+      setIsAdmin(false);
+      setActiveQuiz(null);
+      setIsTakingQuiz(false);
+
+      // 3. Clear localStorage, sessionStorage, cached user data
+      if (typeof window !== "undefined") {
+        localStorage.clear();
+        sessionStorage.clear();
+        // Since we cleared everything, make sure we remember the warning reason so it shows up on login screen!
+        localStorage.setItem("session_terminated_reason", "another_device");
+      }
+
+      // 4. Remove any session-related flags and set warning
+      setSessionConfirmed(false);
+      setIsForcedOut(true);
+      setSessionWarning("Your account has been logged in from another device. Please log in again.");
+
+      console.log("[Active Session Check] Completed forced sign out sequence successfully. Back to login screen.");
+    } catch (err) {
+      console.error("[Active Session Check] Error during forced logout:", err);
+      // Fallback
+      setUser(null);
+    }
+  };
   const [authLoading, setAuthLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -322,10 +358,7 @@ export default function App() {
           // Otherwise, if this device is still in the pending/logging-in phase, we wait for its database write snapshot.
           if (isConfirmed) {
             console.warn("[Active Session Check] Mismatch detected on an active confirmed session! Forced logging out. db:", profile.activeSessionId, "local:", localSessionId);
-            localStorage.setItem("session_terminated_reason", "another_device");
-            setSessionWarning("Your account has been logged in from another device. Please log in again.");
-            setIsForcedOut(true);
-            setSessionConfirmed(false);
+            performForcedLogout();
             return;
           } else {
             console.log("[Active Session Check] Mismatch ignored. Local session is pending DB write. db:", profile.activeSessionId, "local:", localSessionId);
