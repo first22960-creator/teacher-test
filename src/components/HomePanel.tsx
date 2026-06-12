@@ -6,9 +6,17 @@ interface HomePanelProps {
   isAdmin: boolean;
   userId: string;
   userProfile?: any;
+  pendingApprovalsCount?: number;
+  onNavigateToTab?: (tab: "home" | "quizzes" | "admin" | "history" | "approvals" | "support") => void;
 }
 
-export default function HomePanel({ isAdmin, userId, userProfile }: HomePanelProps) {
+export default function HomePanel({ 
+  isAdmin, 
+  userId, 
+  userProfile, 
+  pendingApprovalsCount = 0, 
+  onNavigateToTab 
+}: HomePanelProps) {
   const isOwner = auth.currentUser?.email?.toLowerCase() === "first22960@gmail.com";
   const canCreateAnnouncement = isOwner || userProfile?.adminPermissions?.createAnnouncement !== false;
 
@@ -121,6 +129,36 @@ export default function HomePanel({ isAdmin, userId, userProfile }: HomePanelPro
           </div>
         </div>
       </div>
+
+      {/* Real-time Dashboard Notification for Admin Approvals (Requirement 5) */}
+      {isAdmin && pendingApprovalsCount > 0 && (
+        <div id="pending-approvals-alert" className="relative overflow-hidden rounded-2xl border border-red-150 bg-red-50/50 p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 animate-scale-up">
+          <div className="flex items-start gap-3.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-600 border border-red-200">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+              </span>
+            </div>
+            <div>
+              <h4 className="text-xs sm:text-sm font-black text-red-950 flex items-center gap-1.5 matches-font">
+                ⚠️ มีคำขอสมัครสมาชิกใหม่ค้างอนุมัติสิทธิ์เข้าเรียน!
+              </h4>
+              <p className="text-[11px] text-red-800 leading-normal mt-1 font-bold">
+                มีจำนวน <span className="text-red-600 font-extrabold text-xs underline decoration-2">{pendingApprovalsCount} บัญชี</span> ที่กำลังรอให้สิทธิ์อนุมัติเข้าใช้งานระบบเรียน/ทำข้อสอบอยู่เป็นทางการขณะนี้
+              </p>
+            </div>
+          </div>
+          
+          <button
+            onClick={() => onNavigateToTab?.("approvals")}
+            className="self-start sm:self-center bg-red-600 hover:bg-red-700 active:scale-95 text-white font-extrabold text-[11px] px-4 py-2 rounded-xl border border-red-700/30 transition-all font-semibold italic cursor-pointer shadow-sm shrink-0 inline-flex items-center gap-1.5"
+          >
+            <span>อนุมัติและจัดการสิทธิ์ทันที</span>
+            <span>→</span>
+          </button>
+        </div>
+      )}
 
       {/* Admin Broadcast Creation Form */}
       {isAdmin && (

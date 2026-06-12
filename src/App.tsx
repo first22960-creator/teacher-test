@@ -228,6 +228,9 @@ export default function App() {
   // Real-time online users subscription across whole system
   const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
 
+  // Count of pending member approvals calculated in real-time
+  const pendingApprovalsCount = onlineUsers.filter(u => u.approved === false).length;
+
   useEffect(() => {
     if (!user) {
       setOnlineUsers([]);
@@ -458,6 +461,7 @@ export default function App() {
         onlineUsers={onlineUsers}
         onOpenSettings={() => setShowSettings(true)}
         onSidebarChange={setSidebarExpanded}
+        pendingApprovalsCount={pendingApprovalsCount}
       />
 
       {/* Main Content Stage with Sidebar Padding Transition */}
@@ -786,7 +790,12 @@ export default function App() {
                             </p>
                           </div>
                         </div>
-                        <HomePanel isAdmin={isAdmin} userId={user.uid} />
+                        <HomePanel 
+                          isAdmin={isAdmin} 
+                          userId={user.uid} 
+                          pendingApprovalsCount={pendingApprovalsCount}
+                          onNavigateToTab={setCurrentTab}
+                        />
                       </div>
 
                       {/* Real-time Leaderboard below announcements (Requirement 2) */}
@@ -900,7 +909,12 @@ export default function App() {
                   </div>
                 </div>
               ) : (
-                <HomePanel isAdmin={isAdmin} userId={user.uid} />
+                <HomePanel 
+                  isAdmin={isAdmin} 
+                  userId={user.uid} 
+                  pendingApprovalsCount={pendingApprovalsCount}
+                  onNavigateToTab={setCurrentTab}
+                />
               )
             ) : (
               // Primary Student Portal listing categories and quizzes (Requirement 5)
