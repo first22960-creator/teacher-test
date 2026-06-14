@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { onAuthStateChanged, User, deleteUser } from "firebase/auth";
-import { BookOpen, HelpCircle, Shield, Key, Search, Sparkles, AlertCircle, Award, CheckCircle, Mail, Lock, UserCheck, ChevronRight, GraduationCap, Trophy, Clock, QrCode, CreditCard } from "lucide-react";
+import { BookOpen, HelpCircle, Shield, Key, Search, Sparkles, AlertCircle, Award, CheckCircle, Mail, Lock, UserCheck, ChevronRight, GraduationCap, Trophy, Clock, QrCode, CreditCard, Check } from "lucide-react";
 import { 
   auth, 
   fetchCategories, 
@@ -1006,6 +1006,7 @@ export default function App() {
                     {filteredQuizzes.map((quiz) => {
                       const catName = categories.find(c => c.id === quiz.categoryId)?.name || "ทั่วไป";
                       const isLocked = userProfile?.approved === false && !isAdmin && !quiz.isFree;
+                      const isCompleted = attempts.some(a => a.quizId === quiz.id && a.userId === user?.uid);
 
                       return (
                         <div
@@ -1030,7 +1031,17 @@ export default function App() {
                             <h3 className="mt-4 text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors leading-normal">
                               {quiz.title}
                             </h3>
-                            <p className="mt-1 text-xs text-slate-500 line-clamp-3 leading-relaxed">
+                            
+                            {isCompleted && (
+                              <div className="mt-2 text-left">
+                                <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-100 shadow-xxs">
+                                  <Check className="h-3 w-3 stroke-[2.5]" />
+                                  <span>Completed ✓</span>
+                                </span>
+                              </div>
+                            )}
+
+                            <p className="mt-2 text-xs text-slate-500 line-clamp-3 leading-relaxed">
                               {quiz.description}
                             </p>
                           </div>

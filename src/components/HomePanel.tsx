@@ -60,6 +60,10 @@ export default function HomePanel({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCreateAnnouncement) {
+      setStatus({ type: "error", text: "❌ ขออภัย! คุณไม่มีสิทธิ์ส่งประกาศข่าวสารระบบ กรุณาติดต่อแอดมินคุณเฟิร์สเพื่อขอสิทธิ์เข้าใช้งาน" });
+      return;
+    }
     if (!title.trim() || !content.trim()) {
       setStatus({ type: "error", text: "กรุณากรอกหัวข้อข่าวและรายละเอียดด้วย" });
       return;

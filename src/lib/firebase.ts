@@ -98,6 +98,36 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
+export async function verifyAdminPermissionSync(permissionName: "createQuiz" | "createAnnouncement" | "deleteQuiz") {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error("Authentication required");
+  }
+  const isOwner = user.email?.toLowerCase() === "first22960@gmail.com";
+  if (isOwner) {
+    return true;
+  }
+  
+  try {
+    const userRef = doc(db, "users", user.uid);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) {
+      throw new Error("คุณผู้ใช้นี้ยังไม่มีสิทธิ์ในการแก้ไขหรือเข้าถึงข้อมูลระดับแอดมิน");
+    }
+    const data = userSnap.data();
+    if (data.role !== "admin" && data.isAdmin !== true) {
+      throw new Error("คุณไม่มีสิทธิ์ผู้ดูแลระบบ (Admin) ในการทำรายการนี้");
+    }
+    if (data.adminPermissions?.[permissionName] === false) {
+      throw new Error(`ขออภัย ! บัญชีของคุณถูกปฏิเสธสิทธิ์สำหรับฟังก์ชัน "${permissionName === 'createQuiz' ? 'เพิ่ม/แก้ไขข้อสอบ' : permissionName === 'createAnnouncement' ? 'สร้างประกาศข่าวสาร' : 'ลบข้อสอบ'}" กรุณาติดต่อทีมบริหารเพื่อปรับแต่งสิทธิ์`);
+    }
+    return true;
+  } catch (error) {
+    console.error("Backend Admin Permission Check Failed:", error);
+    throw error;
+  }
+}
+
 // UI trigger: Google Sign In popup with robust single-flight promise lock to prevent duplicate concurrent popups (which causes auth/cancelled-popup-request) and graceful user cancel handling.
 let activeSignInPromise: Promise<any> | null = null;
 
@@ -265,6 +295,7 @@ export async function fetchQuizzes(categoryId?: string): Promise<Quiz[]> {
 export async function createQuiz(categoryId: string, title: string, description: string, timeLimit: number, questions: Omit<Question, "createdAt">[], isFree?: boolean): Promise<string> {
   const path = "quizzes";
   try {
+    await verifyAdminPermissionSync("createQuiz");
     const user = auth.currentUser;
     if (!user) throw new Error("User must be authenticated");
 
@@ -318,6 +349,7 @@ export async function fetchQuestions(quizId: string): Promise<Question[]> {
 export async function deleteQuiz(quizId: string): Promise<void> {
   const path = `quizzes/${quizId}`;
   try {
+    await verifyAdminPermissionSync("deleteQuiz");
     // Delete the root quiz document; Firestore trigger or client routine usually cleans up questions recursively
     await deleteDoc(doc(db, "quizzes", quizId));
   } catch (error) {
@@ -328,6 +360,7 @@ export async function deleteQuiz(quizId: string): Promise<void> {
 export async function updateQuizFreeStatus(quizId: string, isFree: boolean): Promise<void> {
   const path = `quizzes/${quizId}`;
   try {
+    await verifyAdminPermissionSync("createQuiz");
     await updateDoc(doc(db, "quizzes", quizId), { isFree });
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
@@ -735,6 +768,9 @@ export async function updateUserApproval(userId: string, approved: boolean, paym
 export async function updateUserRole(userId: string, role: "admin" | "student"): Promise<void> {
   const path = `users/${userId}`;
   try {
+    const user = auth.currentUser;
+    const isOwner = user?.email?.toLowerCase() === "first22960@gmail.com";
+    if (!isOwner) throw new Error("Only the system owner (first22960@gmail.com) can update user roles/administration status.");
     await updateDoc(doc(db, "users", userId), { role, isAdmin: role === "admin" });
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
@@ -758,6 +794,7 @@ export function subscribeToAnnouncements(callback: (announcements: any[]) => voi
 export async function createAnnouncement(title: string, content: string, imageUrl?: string): Promise<string> {
   const path = "announcements";
   try {
+    await verifyAdminPermissionSync("createAnnouncement");
     const user = auth.currentUser;
     if (!user) throw new Error("Authentication required");
     const dId = doc(collection(db, path)).id;
@@ -778,6 +815,7 @@ export async function createAnnouncement(title: string, content: string, imageUr
 export async function deleteAnnouncement(announcementId: string): Promise<void> {
   const path = `announcements/${announcementId}`;
   try {
+    await verifyAdminPermissionSync("createAnnouncement");
     await deleteDoc(doc(db, "announcements", announcementId));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
@@ -873,6 +911,7 @@ export async function updateQuiz(
 ): Promise<void> {
   const path = `quizzes/${quizId}`;
   try {
+    await verifyAdminPermissionSync("createQuiz");
     // Update main fields
     await updateDoc(doc(db, "quizzes", quizId), {
       categoryId,
@@ -913,6 +952,9 @@ export async function updateAdminPermissions(
 ): Promise<void> {
   const path = `users/${userId}`;
   try {
+    const user = auth.currentUser;
+    const isOwner = user?.email?.toLowerCase() === "first22960@gmail.com";
+    if (!isOwner) throw new Error("Only the system owner (first22960@gmail.com) can update admin permissions.");
     await updateDoc(doc(db, "users", userId), { adminPermissions: permissions });
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);

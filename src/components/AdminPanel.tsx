@@ -218,6 +218,11 @@ export default function AdminPanel({ mode, userProfile }: AdminPanelProps) {
   const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
 
   const handleEditQuizClick = async (q: Quiz) => {
+    if (!canCreateQuiz) {
+      setAdminNotification({ message: "❌ ขออภัย! คุณไม่มีสิทธิ์ในการเพิ่มหรือแก้ไขข้อสอบในระบบ กรุณาติดต่อแอดมินคุณเฟิร์สเพื่อขอสิทธิ์เข้าใช้งาน", type: "error" });
+      setTimeout(() => setAdminNotification(null), 5000);
+      return;
+    }
     try {
       setAdminActionLoading(true);
       // Fetch full questions list from subcollection
@@ -666,7 +671,22 @@ export default function AdminPanel({ mode, userProfile }: AdminPanelProps) {
         </div>
 
         {/* Right Column: AI-Backed Quiz Constructor */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-6 relative">
+          {!canCreateQuiz && (
+            <div className="absolute inset-0 z-40 bg-slate-50/70 backdrop-blur-[2px] rounded-2xl flex flex-col items-center justify-center p-6 text-center animate-fade-in min-h-[400px]">
+              <div className="bg-white border border-slate-100 p-6 rounded-2xl max-w-sm shadow-xl space-y-4">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-rose-50 text-rose-600 border border-rose-100 animate-bounce">
+                  <ShieldCheck className="h-7 w-7 stroke-[2]" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-extrabold text-slate-900">🔒 สิทธิ์การจัดการข้อสอบถูกจำกัด</h4>
+                  <p className="text-[11px] text-slate-500 font-semibold leading-relaxed mt-2">
+                    บัญชีของคุณไม่มีสิทธิ์ "เพิ่ม/แก้ไขข้อสอบ" ในระบบขณะนี้ ระบบได้จำกัดการเข้าถึงปุ่มเครื่องมือและการสกัดอัตโนมัติ กรุณาติดต่อแอดมินคุณเฟิร์สระดับสูงเพื่อพิจารณาปลดล็อกความสามารถนี้
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
           
           {/* Main Creator Module */}
           <div className="rounded-2xl border border-slate-100 bg-white p-6 sm:p-8 shadow-sm space-y-6">
