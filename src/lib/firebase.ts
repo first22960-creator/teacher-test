@@ -110,7 +110,7 @@ export async function verifyAdminPermissionSync(permissionName: "createQuiz" | "
   
   try {
     const userRef = doc(db, "users", user.uid);
-    const userSnap = await getDoc(userRef);
+    const userSnap = await getDocFromServer(userRef);
     if (!userSnap.exists()) {
       throw new Error("คุณผู้ใช้นี้ยังไม่มีสิทธิ์ในการแก้ไขหรือเข้าถึงข้อมูลระดับแอดมิน");
     }

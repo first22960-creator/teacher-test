@@ -725,10 +725,10 @@ export default function App() {
             ) : (
               currentTab === "admin" && isAdmin ? (
                 // Admin module controller dashboard - Quiz Mode
-                <AdminPanel mode="quiz" />
+                <AdminPanel mode="quiz" userProfile={userProfile} />
               ) : currentTab === "approvals" && isAdmin ? (
                 // Admin module controller dashboard - Approvals Mode
-                <AdminPanel mode="approvals" />
+                <AdminPanel mode="approvals" userProfile={userProfile} />
               ) : currentTab === "support" ? (
                 <SupportPanel isAdmin={isAdmin} userProfile={userProfile} />
             ) : currentTab === "history" ? (
@@ -793,6 +793,7 @@ export default function App() {
                         <HomePanel 
                           isAdmin={isAdmin} 
                           userId={user.uid} 
+                          userProfile={userProfile}
                           pendingApprovalsCount={pendingApprovalsCount}
                           onNavigateToTab={setCurrentTab}
                         />
@@ -912,6 +913,7 @@ export default function App() {
                 <HomePanel 
                   isAdmin={isAdmin} 
                   userId={user.uid} 
+                  userProfile={userProfile}
                   pendingApprovalsCount={pendingApprovalsCount}
                   onNavigateToTab={setCurrentTab}
                 />
