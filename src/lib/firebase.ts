@@ -104,26 +104,54 @@ export async function verifyAdminPermissionSync(permissionName: "createQuiz" | "
     throw new Error("Authentication required");
   }
   const isOwner = user.email?.toLowerCase() === "first22960@gmail.com";
+  console.log("[Permission Sync Debug] Start check:", {
+    uid: user.uid,
+    email: user.email,
+    isOwner,
+    checkingPermission: permissionName
+  });
+
   if (isOwner) {
+    console.log("[Permission Sync Debug] Owner access granted automatically.");
     return true;
   }
   
   try {
     const userRef = doc(db, "users", user.uid);
-    const userSnap = await getDocFromServer(userRef);
+    // Use getDoc to read from snapshot-synchronized cache instantly
+    const userSnap = await getDoc(userRef);
     if (!userSnap.exists()) {
       throw new Error("คุณผู้ใช้นี้ยังไม่มีสิทธิ์ในการแก้ไขหรือเข้าถึงข้อมูลระดับแอดมิน");
     }
     const data = userSnap.data();
-    if (data.role !== "admin" && data.isAdmin !== true) {
+    
+    const role = data.role || "student";
+    const isAdmin = data.isAdmin === true || role === "admin";
+    const permissions = data.adminPermissions || {};
+    const hasPerm = permissions[permissionName] !== false;
+
+    console.log("[Permission Sync Debug] Loaded Profile:", {
+      uid: user.uid,
+      role: role,
+      isAdmin: isAdmin,
+      permissions: permissions,
+      permissionChecked: permissionName,
+      permissionValue: permissions[permissionName],
+      permissionCheckResult: hasPerm
+    });
+
+    if (!isAdmin) {
       throw new Error("คุณไม่มีสิทธิ์ผู้ดูแลระบบ (Admin) ในการทำรายการนี้");
     }
-    if (data.adminPermissions?.[permissionName] === false) {
+
+    if (!hasPerm) {
       throw new Error(`ขออภัย ! บัญชีของคุณถูกปฏิเสธสิทธิ์สำหรับฟังก์ชัน "${permissionName === 'createQuiz' ? 'เพิ่ม/แก้ไขข้อสอบ' : permissionName === 'createAnnouncement' ? 'สร้างประกาศข่าวสาร' : 'ลบข้อสอบ'}" กรุณาติดต่อทีมบริหารเพื่อปรับแต่งสิทธิ์`);
     }
+
+    console.log("[Permission Sync Debug] Access GRANTED for:", permissionName);
     return true;
   } catch (error) {
-    console.error("Backend Admin Permission Check Failed:", error);
+    console.error("[Permission Sync Debug] Access DENIED/Error:", error);
     throw error;
   }
 }

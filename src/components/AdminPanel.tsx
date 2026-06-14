@@ -32,6 +32,21 @@ export default function AdminPanel({ mode, userProfile }: AdminPanelProps) {
   const isOwner = auth.currentUser?.email?.toLowerCase() === "first22960@gmail.com";
   const canCreateQuiz = isOwner || userProfile?.adminPermissions?.createQuiz !== false;
   const canDeleteQuiz = isOwner || userProfile?.adminPermissions?.deleteQuiz !== false;
+
+  console.log("[AdminPanel Permission Watcher]", {
+    currentUserId: auth.currentUser?.uid,
+    currentUserRole: userProfile?.role,
+    permissionObjectLoaded: userProfile?.adminPermissions,
+    isOwner,
+    createQuiz: {
+      value: userProfile?.adminPermissions?.createQuiz,
+      result: canCreateQuiz
+    },
+    deleteQuiz: {
+      value: userProfile?.adminPermissions?.deleteQuiz,
+      result: canDeleteQuiz
+    }
+  });
   const [categories, setCategories] = useState<Category[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);

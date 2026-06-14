@@ -12,7 +12,34 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSignedIn() && request.auth.token.email == "first22960@gmail.com";
+      return isSignedIn() && (
+        request.auth.token.email == "first22960@gmail.com" ||
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          (
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin" ||
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+          )
+        )
+      );
+    }
+
+    function hasAdminPermission(permissionName) {
+      return isSignedIn() && (
+        request.auth.token.email == "first22960@gmail.com" ||
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          (
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin" ||
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+          ) &&
+          (
+            !("adminPermissions" in get(/databases/$(database)/documents/users/$(request.auth.uid)).data) ||
+            !(permissionName in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.adminPermissions) ||
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.adminPermissions[permissionName] != false
+          )
+        )
+      );
     }
 
     function isValidId(id) {
@@ -103,33 +130,33 @@ service cloud.firestore {
     // Rules for each collection
     match /categories/{categoryId} {
       allow get, list: if isSignedIn();
-      allow create: if isAdmin() && isValidId(categoryId) && isValidCategory(incoming())
+      allow create: if hasAdminPermission("createQuiz") && isValidId(categoryId) && isValidCategory(incoming())
         && incoming().createdAt == request.time
         && incoming().createdBy == request.auth.uid;
-      allow update: if isAdmin() && isValidId(categoryId) && isValidCategory(incoming())
+      allow update: if hasAdminPermission("createQuiz") && isValidId(categoryId) && isValidCategory(incoming())
         && incoming().createdAt == existing().createdAt
         && incoming().createdBy == existing().createdBy;
-      allow delete: if isAdmin() && isValidId(categoryId);
+      allow delete: if hasAdminPermission("createQuiz") && isValidId(categoryId);
     }
 
     match /quizzes/{quizId} {
       allow get, list: if isSignedIn();
-      allow create: if isAdmin() && isValidId(quizId) && isValidQuiz(incoming())
+      allow create: if hasAdminPermission("createQuiz") && isValidId(quizId) && isValidQuiz(incoming())
         && incoming().createdAt == request.time
         && incoming().createdBy == request.auth.uid;
-      allow update: if isAdmin() && isValidId(quizId) && isValidQuiz(incoming())
+      allow update: if hasAdminPermission("createQuiz") && isValidId(quizId) && isValidQuiz(incoming())
         && incoming().createdAt == existing().createdAt
         && incoming().createdBy == existing().createdBy;
-      allow delete: if isAdmin() && isValidId(quizId);
+      allow delete: if hasAdminPermission("deleteQuiz") && isValidId(quizId);
 
       // Subcollection questions rules
       match /questions/{questionId} {
         allow get, list: if isSignedIn();
-        allow create: if isAdmin() && isValidId(questionId) && isValidQuestion(incoming())
+        allow create: if hasAdminPermission("createQuiz") && isValidId(questionId) && isValidQuestion(incoming())
           && incoming().createdAt == request.time;
-        allow update: if isAdmin() && isValidId(questionId) && isValidQuestion(incoming())
+        allow update: if hasAdminPermission("createQuiz") && isValidId(questionId) && isValidQuestion(incoming())
           && incoming().createdAt == existing().createdAt;
-        allow delete: if isAdmin() && isValidId(questionId);
+        allow delete: if hasAdminPermission("createQuiz") && isValidId(questionId);
       }
     }
 
@@ -162,9 +189,9 @@ service cloud.firestore {
 
     match /announcements/{announcementId} {
       allow get, list: if true;
-      allow create: if isAdmin() && isValidId(announcementId) && incoming().createdAt == request.time;
-      allow update: if isAdmin() && incoming().createdAt == existing().createdAt;
-      allow delete: if isAdmin();
+      allow create: if hasAdminPermission("createAnnouncement") && isValidId(announcementId) && incoming().createdAt == request.time;
+      allow update: if hasAdminPermission("createAnnouncement") && incoming().createdAt == existing().createdAt;
+      allow delete: if hasAdminPermission("createAnnouncement");
     }
 
     match /notifications/{notificationId} {

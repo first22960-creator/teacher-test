@@ -20,6 +20,17 @@ export default function HomePanel({
   const isOwner = auth.currentUser?.email?.toLowerCase() === "first22960@gmail.com";
   const canCreateAnnouncement = isOwner || userProfile?.adminPermissions?.createAnnouncement !== false;
 
+  console.log("[HomePanel Permission Watcher]", {
+    currentUserId: userId,
+    currentUserRole: userProfile?.role,
+    permissionObjectLoaded: userProfile?.adminPermissions,
+    isOwner,
+    createAnnouncement: {
+      value: userProfile?.adminPermissions?.createAnnouncement,
+      result: canCreateAnnouncement
+    }
+  });
+
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
