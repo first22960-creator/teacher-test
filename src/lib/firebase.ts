@@ -140,6 +140,14 @@ export async function verifyAdminPermissionSync(permissionName: "createQuiz" | "
       permissionCheckResult: hasPerm
     });
 
+    console.log("[Permission Sync Debug Requirements Log]", {
+      "User UID": user.uid,
+      "User Role": role,
+      "Permission Object": permissions,
+      "createQuiz value": permissions?.createQuiz,
+      "updateQuiz permission result": permissions?.createQuiz !== false
+    });
+
     if (!isAdmin) {
       throw new Error("คุณไม่มีสิทธิ์ผู้ดูแลระบบ (Admin) ในการทำรายการนี้");
     }

@@ -17,8 +17,8 @@ service cloud.firestore {
         (
           exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
           (
-            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin" ||
-            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get("role", "student") == "admin" ||
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get("isAdmin", false) == true
           )
         )
       );
@@ -30,13 +30,12 @@ service cloud.firestore {
         (
           exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
           (
-            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin" ||
-            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get("role", "student") == "admin" ||
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get("isAdmin", false) == true
           ) &&
           (
-            !("adminPermissions" in get(/databases/$(database)/documents/users/$(request.auth.uid)).data) ||
-            !(permissionName in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.adminPermissions) ||
-            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.adminPermissions[permissionName] != false
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get("adminPermissions", null) == null ||
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.adminPermissions.get(permissionName, true) != false
           )
         )
       );
