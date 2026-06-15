@@ -1,6 +1,6 @@
 import express from "express";
 import path from "path";
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -85,11 +85,14 @@ app.post("/api/gemini/parse-questions", async (req, res) => {
     }
 
     const systemInstruction = 
-      "คุณคือผู้เชี่ยวชาญด้านการออกข้อสอบและการศึกษา " +
-      "หน้าที่ของคุณคือการแปลงเนื้อหาดิบทราถูกคัดลอกมา (เช่น ชีทสรุป, ตำราเรียน, ข้อมูลดิบ หรือข้อสอบเก่าที่ฟอร์แมตกระจัดกระจาย) " +
-      "ให้กลายเป็นข้อสอบปรนัย (Multiple-choice) 4 ตัวเลือกภาษาไทยที่มีคุณภาพสูง โดยแต่ละข้อต้องมีคำถามที่ชัดเจน, " +
-      "ตัวเลือกที่เหมาะสม 4 ตัวเลือก, ดัชนีข้อที่ถูกต้อง (0-based correctIndex) และคำอธิบายความรู้สั้นๆ ที่ถูกต้องและเข้าใจง่าย " +
-      "ห้ามสร้างข้อมูลเท็จเด็ดขาด และตรวจสอบให้แน่ใจว่าได้ดัชนีข้อที่ถูกต้องตรงกับเนื้อหา";
+      "คุณคือผู้เชี่ยวชาญด้านการออกข้อสอบและการศึกษาที่มุ่งเน้นความเร็วและการสรุปประเด็นสูงสุด " +
+      "หน้าที่ของคุณคือการแปลงเนื้อหาดิบที่ถูกส่งมา (ชีทสรุป, ข้อมูลดิบ, หรือข้อสอบเก่าที่ฟอร์แมตกระจัดกระจาย) " +
+      "ให้กลายเป็นข้อสอบปรนัย (Multiple-choice) 4 ตัวเลือกภาษาไทยที่มีคุณภาพสูง โดยแต่ละข้อต้องประกอบด้วย:\n" +
+      "1. คำถามสำคัญ (text) สั้นกระชับตรงประเด็น ไม่เยิ่นเย้อ\n" +
+      "2. ตัวเลือก 4 ตัวเลือก (options) ที่สั้น กระชับ แม่นยำ\n" +
+      "3. ดัชนีข้อเฉลยที่ถูกต้อง (correctIndex) เป็นเลข 0-3\n" +
+      "4. คำอธิบายเฉลย (explanation) สั้นกระชับที่สุด ไม่เกิน 1 ประโยคเด็ดขาด (ห้ามยาวเกิน 15 คำ) เพื่อประหยัดระยะเวลาประมวลผลและลดเวลาดาวน์โหลด\n" +
+      "ห้ามสร้างข้อมูลเท็จเด็ดขาด และห้ามคิดวิเคราะห์นอกเรื่องจนทำงานช้า";
 
     const prompt = `ช่วยแปลงเนื้อหาเหล่านี้ให้เป็นข้อสอบชุดประเมินผลภาษาไทยที่มี 4 ตัวเลือกตามโครงสร้าง JSON:
 [
@@ -97,38 +100,36 @@ app.post("/api/gemini/parse-questions", async (req, res) => {
     "text": "ข้อคำถาม...",
     "options": ["ตัวเลือกที่ 1", "ตัวเลือกที่ 2", "ตัวเลือกที่ 3", "ตัวเลือกที่ 4"],
     "correctIndex": 0,
-    "explanation": "คำอธิบายเฉลย..."
+    "explanation": "คำอธิบายสั้นสุดๆ ไม่เกิน 1 ประโยคเด็ดขาด"
   }
 ]
+
+สำคัญมากเพื่อความรวดเร็วสูงสุด: เฉลยและดัชนีต้องถูกต้อง 100% แต่คำอธิบาย (explanation) ต้องสั้น กระชับ แบน และรวดเร็วที่สุด ห้ามเขียนยาวบรรยายทฤษฎียืดยาวเด็ดขาด!
 
 เนื้อหาดิบที่ต้องการให้แปลง:
 ${rawText}`;
 
-    // List of models to try in sequence if there is a transient 503 or overload error.
-    // 'gemini-3.5-flash' is the main model, 'gemini-3.1-flash-lite', 'gemini-flash-latest' and 'gemini-3.1-pro-preview' serve as backup models.
-    const modelsToTry = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-flash-latest", "gemini-3.1-pro-preview"];
+    // Highly optimized fast models context: Try gemini-3.5-flash first, and fallback to the ultra-fast gemini-3.1-flash-lite.
+    const modelsToTry = ["gemini-3.5-flash", "gemini-3.1-flash-lite"];
     let lastError: any = null;
     let parsedQuestions: any[] | undefined = undefined;
 
     for (const modelName of modelsToTry) {
-      // Up to 2 retries per model with linear backoff plus randomized jitter
-      for (let attempt = 1; attempt <= 2; attempt++) {
+      // 1 attempt per model is enough to support extremely fast failover
+      for (let attempt = 1; attempt <= 1; attempt++) {
         try {
-          console.log(`[Gemini Request] Attempting parsing using model: ${modelName} (Attempt ${attempt}/2)`);
+          console.log(`[Gemini Request] Attempting parsing using rapid model: ${modelName}`);
           
-          // Try schema-based validation on the first attempt, and plain JSON text generation on retry
-          // to bypass schema-compatibility limitations in older or heavily loaded backup models.
+          // Disable any thinking delay and enforce JSON output
           const config: any = {
             systemInstruction,
-            temperature: 0.2, // low temperature for precise factual formatting
+            temperature: 0.1, // low temperature for precise factual formatting
             responseMimeType: "application/json",
+            thinkingConfig: {
+              thinkingLevel: ThinkingLevel.MINIMAL // Absolute zero thinking overhead for maximum extraction speed
+            },
+            responseSchema: questionsResponseSchema // Always use structured output schema for perfect parsing
           };
-
-          if (attempt === 1) {
-            config.responseSchema = questionsResponseSchema;
-          } else {
-            console.log(`[Gemini Info] Retrying model ${modelName} with simplified, non-schema config to ensure maximum compatibility`);
-          }
 
           const ai = getGeminiClient();
           const response = await ai.models.generateContent({
@@ -149,15 +150,8 @@ ${rawText}`;
           }
         } catch (err: any) {
           lastError = err;
-          // Use safe words for logs so automated log error detectors don't trigger on 'failed: <error msg>'
           const messageStr = err?.message || String(err);
-          console.log(`[Gemini Status] Model ${modelName} (Attempt ${attempt}/2) is temporarily busy. Details: ${messageStr.slice(0, 150)}`);
-          
-          // Wait longer with randomized jitter (e.g. 2s to 3s) before retrying/falling back to let the server recover from 503
-          if (attempt === 1) {
-            const backoffMs = attempt * 2000 + Math.floor(Math.random() * 1000);
-            await new Promise((resolve) => setTimeout(resolve, backoffMs));
-          }
+          console.log(`[Gemini Status] Model ${modelName} is temporarily busy or failed. Details: ${messageStr.slice(0, 150)}`);
         }
       }
       
