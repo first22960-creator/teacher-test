@@ -2,6 +2,62 @@ import React, { useState, useRef } from "react";
 import { X, Check, Upload, Phone, Mail, User, CreditCard, ChevronRight, Sparkles } from "lucide-react";
 import { submitPayment, createNotification } from "../lib/firebase";
 
+// Helper for generating standard Thai PromptPay QR Payload (EMVCo String with CRC-CCITT Checksum)
+function generatePromptPayPayload(target: string, amount: number): string {
+  const targetSanitized = target.replace(/[^0-9]/g, "");
+  let targetType = "01"; // Default mobile
+  let targetVal = targetSanitized;
+  
+  if (targetSanitized.length === 10) {
+    targetVal = "0066" + targetSanitized.substring(1);
+    targetType = "01";
+  } else if (targetSanitized.length === 13) {
+    targetType = "02"; // ID card / Tax ID
+    targetVal = targetSanitized;
+  }
+  
+  const AID = "A000000677010111";
+  
+  // Tag 29: Merchant Account Information
+  const subTag00 = "0016" + AID;
+  const subTag01 = targetType + String(targetVal.length).padStart(2, "0") + targetVal;
+  const tag29Value = subTag00 + subTag01;
+  const tag29 = "29" + String(tag29Value.length).padStart(2, "0") + tag29Value;
+  
+  // Tag 58: country TH
+  const tag58 = "5802TH";
+  
+  // Tag 53: currency 764
+  const tag53 = "5303764";
+  
+  // Tag 54: amount
+  let tag54 = "";
+  if (amount) {
+    const amountStr = amount.toFixed(2);
+    tag54 = "54" + String(amountStr.length).padStart(2, "0") + amountStr;
+  }
+  
+  const rawPayload = [
+    "000201",
+    "010212", // 12 for dynamic (with amount)
+    tag29,
+    tag58,
+    tag53,
+    tag54,
+    "6304"
+  ].filter(Boolean).join("");
+  
+  // Calculate CRC16 CCITT
+  let crc = 0xFFFF;
+  for (let i = 0; i < rawPayload.length; i++) {
+    let x = ((crc >> 8) ^ rawPayload.charCodeAt(i)) & 0xFF;
+    x ^= x >> 4;
+    crc = ((crc << 8) ^ (x << 12) ^ (x << 5) ^ x) & 0xFFFF;
+  }
+  const crcHex = crc.toString(16).toUpperCase().padStart(4, "0");
+  return rawPayload + crcHex;
+}
+
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -178,15 +234,59 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
                 </div>
 
                 {/* PromptPay QR code card */}
-                <div className="relative border border-slate-100 rounded-xl p-3 bg-gradient-to-b from-teal-50/20 to-indigo-50/20 flex flex-col items-center justify-center w-full max-w-[220px] mx-auto">
-                  <img
-                    src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=000201010211303000160014013141592653580215000000000000199540599.005802TH"
-                    alt="PromptPay QR Code"
-                    className="h-32 w-32 object-contain"
-                  />
-                  <div className="text-[10px] font-bold text-slate-600 mt-1.5 flex items-center gap-1">
-                    <CreditCard className="h-3 w-3 text-teal-600" />
-                    <span>ชื่อบัญชี: บลูคิว ครูสองสี่ศิษย์ครูคนไทย</span>
+                <div id="thai-qr-payment-card" className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-md flex flex-col w-full max-w-[280px] mx-auto transition-transform hover:scale-[1.02] duration-300">
+                  {/* Header: THAI QR PAYMENT */}
+                  <div className="bg-[#104f7c] px-4 py-2.5 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-6 w-6 rounded-md bg-white flex items-center justify-center p-0.5 shadow-sm">
+                        {/* Thai QR Logo Representation */}
+                        <div className="h-3.5 w-3.5 border-2 border-[#104f7c] rounded-xs flex items-center justify-center">
+                          <div className="h-1.5 w-1.5 bg-[#104f7c] rounded-xs font-sans"></div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col select-none">
+                        <span className="text-[10px] font-black text-white tracking-widest leading-none">THAI QR</span>
+                        <span className="text-[7.5px] font-bold text-slate-200 tracking-wider leading-none mt-0.5">PAYMENT</span>
+                      </div>
+                    </div>
+                    {/* PromptPay signature badge */}
+                    <div className="bg-white rounded px-1.5 py-0.5 flex flex-col items-center justify-center border border-slate-100">
+                      <span className="text-[5px] text-[#104f7c] font-black leading-none select-none">พร้อมเพย์</span>
+                      <span className="text-[10px] font-black text-[#104f7c] leading-none tracking-tight select-none mt-0.5">PromptPay</span>
+                    </div>
+                  </div>
+
+                  {/* QR Image Box */}
+                  <div className="p-4 flex flex-col items-center bg-white space-y-2">
+                    <div className="relative border-4 border-[#104f7c]/5 rounded-xl p-2 bg-slate-50/50">
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(generatePromptPayPayload("0902722960", 99))}`}
+                        alt="PromptPay QR Code"
+                        className="h-36 w-36 object-contain selection:bg-none"
+                      />
+                    </div>
+
+                    {/* Receipt Details */}
+                    <div className="text-center w-full pt-1 space-y-1">
+                      <div className="text-xs font-black text-[#2b9f9a] tracking-wide select-none">
+                        สแกน QR เพื่อโอนเข้าบัญชี
+                      </div>
+                      <div className="text-[12px] font-black text-rose-600 bg-rose-50 border border-rose-100 py-1.5 px-2 rounded-lg block">
+                        ชื่อบัญชี: <span>นาย พิพัฒนชัย นาดี เท่านั้น</span>
+                      </div>
+                      <div className="text-[10px] font-bold text-slate-600 bg-slate-50 py-0.5 px-2 rounded-md inline-block font-sans">
+                        บัญชีพร้อมเพย์: 090-272-2960
+                      </div>
+                      <div className="text-[8px] text-slate-400 font-sans block leading-none">
+                        เลขที่อ้างอิง: 004990902722960
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer style K+ */}
+                  <div className="bg-slate-50 border-t border-emerald-500 py-2 px-3 flex items-center justify-center gap-1 text-[9px] font-bold text-slate-500">
+                    <span className="text-[#0faf7f] font-black text-[11px] mr-1 bg-white border border-[#0faf7f]/30 rounded px-1 py-0.2 shadow-3xs select-none">K+</span>
+                    <span>Accepts all banks | รับเงินได้จากทุกธนาคาร</span>
                   </div>
                 </div>
 
@@ -197,7 +297,7 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
               </div>
 
               <div className="text-[10px] text-indigo-600 font-bold bg-indigo-50 p-3 rounded-xl border border-indigo-100 text-center">
-                💬 สนใจสอบถามหรือแจ้งโอนผ่าน LINE: <span className="underline select-all text-indigo-800">@ครูผู้ช่วยพรีเมียม</span>
+                💬 สนใจสอบถามหรือแจ้งโอนผ่าน LINE: <a href="https://line.me/R/ti/p/%40277iszjl" target="_blank" rel="noopener noreferrer" className="underline select-all text-indigo-800 hover:text-indigo-600">@277iszjl</a>
               </div>
             </div>
 

@@ -760,12 +760,12 @@ export default function App() {
                         <span>อัปเกรดสมาชิกพรีเมียม (99.- ตลอดชีพ)</span>
                       </button>
                       <a
-                        href="https://line.me"
+                        href="https://line.me/R/ti/p/%40277iszjl"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="w-full inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-500 transition-colors shadow-xs cursor-pointer"
                       >
-                        💬 ติดต่อส่งสลิปเพื่อขออนุมัติสิทธิ์ LINE
+                        💬 ติดต่อส่งสลิปเพื่อขออนุมัติสิทธิ์ LINE (@277iszjl)
                       </a>
                     </div>
                   </div>
@@ -841,12 +841,12 @@ export default function App() {
                               </button>
                               <a
                                 id="line-trigger-trial"
-                                href="https://line.me"
+                                href="https://line.me/R/ti/p/%40277iszjl"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-500 transition-colors shadow-xs cursor-pointer"
+                                className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-500 transition-colors shadow-xs cursor-pointer block text-center flex items-center justify-center"
                               >
-                                💬 สอบถามเพิ่มเติมผ่าน LINE
+                                💬 สอบถามเพิ่มเติมผ่าน LINE (@277iszjl)
                               </a>
                               <button
                                 id="signout-trigger-trial"
@@ -887,12 +887,12 @@ export default function App() {
                               </button>
                               <a
                                 id="line-trigger-trial"
-                                href="https://line.me"
+                                href="https://line.me/R/ti/p/%40277iszjl"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-500 transition-colors shadow-xs cursor-pointer"
+                                className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-500 transition-colors shadow-xs cursor-pointer block text-center flex items-center justify-center"
                               >
-                                💬 ติดต่อแอดมินด่วนผ่าน LINE อนุมัติสิทธิ์
+                                💬 ติดต่อแอดมินด่วนผ่าน LINE (@277iszjl)
                               </a>
                               <button
                                 id="signout-trigger-trial"
