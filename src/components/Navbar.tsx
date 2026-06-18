@@ -155,7 +155,7 @@ export default function Navbar({
               </div>
               <div>
                 <h1 className="text-sm sm:text-base font-bold tracking-tight text-slate-900 flex items-center gap-1.5">
-                  <span>แบบฝึกหัดครูผู้ช่วย</span>
+                  <span>แบบฝึกหัดครูผู้ช่วย By วิทย์สิว่ะ</span>
                   <span className="hidden sm:inline-flex items-center rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-700/10 gap-0.5 animate-pulse">
                     <Sparkles className="h-2.5 w-2.5" /> พรีเมียม
                   </span>
@@ -507,7 +507,7 @@ export default function Navbar({
                     <BookOpen className="h-4.5 w-4.5" />
                   </div>
                   <div>
-                    <h3 className="text-xs font-black text-slate-900 leading-none">แบบฝึกหัดครูผู้ช่วย</h3>
+                    <h3 className="text-xs font-black text-slate-900 leading-none">แบบฝึกหัดครูผู้ช่วย By วิทย์สิว่ะ</h3>
                     <p className="text-[9px] text-slate-400 mt-0.5">ระบบติวสอบพรีเมียมคอร์ส</p>
                   </div>
                 </div>

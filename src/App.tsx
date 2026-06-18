@@ -1102,7 +1102,7 @@ export default function App() {
 
       {/* Humble Footer */}
       <footer className="bg-white border-t border-slate-100 py-6 text-center">
-        <p className="text-xs text-slate-400">© 2026 แบบฝึกหัดครูผู้ช่วย. พัฒนาขึ้นด้วยระบบประเมินอัจฉริยะ • มั่นคง ปลอดภัย ด้วยระบบเทคโนโลยีวิเคราะห์ข้อมูลมาตรฐานสูง</p>
+        <p className="text-xs text-slate-400">© 2026 แบบฝึกหัดครูผู้ช่วย By วิทย์สิว่ะ สงวนลิขสิทธิ์ตามกฎหมาย</p>
       </footer>
       </div>
 

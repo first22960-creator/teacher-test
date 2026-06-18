@@ -1,5 +1,5 @@
 {
-  "name": "แบบฝึกหัดครูผู้ช่วย",
+  "name": "แบบฝึกหัดครูผู้ช่วย By วิทย์สิว่ะ",
   "description": "ระบบทำข้อสอบและแบบฝึกหัดเตรียมสอบครูผู้ช่วยแบบออนไลน์ มีตารางอันดับคะแนน Realtime และเฉลยละเอียด",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
