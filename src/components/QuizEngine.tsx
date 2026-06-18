@@ -55,8 +55,32 @@ export default function QuizEngine({ quiz, onExit, onSubmitted }: QuizEngineProp
         setLoading(true);
         const data = await fetchQuestions(quiz.id);
         
-        // Shuffle or simply set questions
-        setQuestions(data);
+        // Secure Fisher-Yates shuffle helper
+        const shuffleArray = <T,>(array: T[]): T[] => {
+          const arr = [...array];
+          for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+          }
+          return arr;
+        };
+
+        // Scramble both the questions list and their internal options list safely
+        const scrambled = shuffleArray(data).map((q) => {
+          const originalOptions = q.options || [];
+          const indexedOptions = originalOptions.map((opt, index) => ({ opt, originalIdx: index }));
+          const shuffledIndexed = shuffleArray(indexedOptions);
+          
+          return {
+            ...q,
+            options: shuffledIndexed.map(x => x.opt),
+            correctIndex: shuffledIndexed.findIndex(x => x.originalIdx === q.correctIndex) !== -1 
+              ? shuffledIndexed.findIndex(x => x.originalIdx === q.correctIndex) 
+              : 0
+          };
+        });
+
+        setQuestions(scrambled);
         if (quiz.timeLimit > 0) {
           setTimeLeft(quiz.timeLimit * 60);
         }
@@ -256,12 +280,17 @@ export default function QuizEngine({ quiz, onExit, onSubmitted }: QuizEngineProp
       
       {/* Quiz Dashboard / Session Info Bar */}
       {!isSubmitted && (
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-slate-900 px-6 py-4 text-white shadow-md">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-slate-900 px-6 py-4 text-white shadow-md w-full">
           <div className="flex items-center gap-2">
             <BookOpen className="h-5 w-5 text-indigo-400" />
             <div>
-              <h2 className="font-bold text-sm sm:text-base">{quiz.title}</h2>
-              <p className="text-xxs text-slate-400">หมวดหมู่สอบวิชาปรนัย</p>
+              <h2 className="font-bold text-sm sm:text-base flex items-center gap-2 flex-wrap">
+                <span>{quiz.title}</span>
+                <span className="inline-flex items-center rounded-md bg-indigo-500/20 px-1.5 py-0.5 text-[9px] font-bold text-indigo-300 ring-1 ring-inset ring-indigo-500/30">
+                  Shuffle Mode Active
+                </span>
+              </h2>
+              <p className="text-xxs text-slate-400">หมวดหมู่สอบวิชาปรนัย (ระบบสลับหัวข้อคำถามและช้อยส์คำตอบอัตโนมัติ)</p>
             </div>
           </div>
 

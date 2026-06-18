@@ -23,6 +23,7 @@ import HistoryPanel from "./components/HistoryPanel";
 import Leaderboard from "./components/Leaderboard";
 import SettingsModal from "./components/SettingsModal";
 import PaymentModal from "./components/PaymentModal";
+import { WitsivaLogo } from "./components/WitsivaLogo";
 import HomePanel from "./components/HomePanel";
 import SupportPanel from "./components/SupportPanel";
 
@@ -498,6 +499,8 @@ export default function App() {
                 <p className="text-sm text-slate-600 leading-relaxed">
                   รวบรวมแบบฝึกหัดเกณฑ์ล่าสุด ก.ค.ศ. พัฒนาและวิเคราะห์คลังข้อสอบร่วมกับกลุ่มผู้ทรงคุณวุฒิและคณะกรรมการผู้เชี่ยวชาญ สรุปสาระสำคัญ เพื่อยกระดับความรอบรู้ในการเข้าสู่เส้นทางจรรยาบรรณวิชาชีพครูอย่างมั่นคง
                 </p>
+
+
 
                 {/* Sub-areas of the Exam Syllabus */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left pt-2">

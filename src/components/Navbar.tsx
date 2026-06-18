@@ -5,6 +5,7 @@ import {
   Menu, ChevronLeft, ChevronRight, MessageCircle 
 } from "lucide-react";
 import { User } from "firebase/auth";
+import { WitsivaLogo } from "./WitsivaLogo";
 import { 
   signInWithGoogle, 
   logOut, 
@@ -150,9 +151,7 @@ export default function Navbar({
             )}
 
             <div className="flex items-center space-x-2 cursor-pointer" onClick={() => navigateTo("home")}>
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-200">
-                <BookOpen className="h-5 w-5" />
-              </div>
+              <WitsivaLogo className="h-10 w-10 shrink-0" />
               <div>
                 <h1 className="text-sm sm:text-base font-bold tracking-tight text-slate-900 flex items-center gap-1.5">
                   <span>แบบฝึกหัดครูผู้ช่วย By วิทย์สิว่ะ</span>
@@ -503,9 +502,7 @@ export default function Navbar({
               {/* Header inside drawer */}
               <div className="flex items-center justify-between border-b border-slate-50 pb-4">
                 <div className="flex items-center space-x-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white font-bold text-xs shadow-md">
-                    <BookOpen className="h-4.5 w-4.5" />
-                  </div>
+                  <WitsivaLogo className="h-8 w-8 shrink-0" />
                   <div>
                     <h3 className="text-xs font-black text-slate-900 leading-none">แบบฝึกหัดครูผู้ช่วย By วิทย์สิว่ะ</h3>
                     <p className="text-[9px] text-slate-400 mt-0.5">ระบบติวสอบพรีเมียมคอร์ส</p>

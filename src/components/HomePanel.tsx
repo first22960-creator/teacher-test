@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Megaphone, Trash2, Calendar, FileText, Send, AlertCircle, CheckCircle, Sparkles, Upload, X } from "lucide-react";
 import { auth, subscribeToAnnouncements, createAnnouncement, deleteAnnouncement, createNotification } from "../lib/firebase";
+import { WitsivaLogo } from "./WitsivaLogo";
 
 interface HomePanelProps {
   isAdmin: boolean;
@@ -364,11 +365,14 @@ export default function HomePanel({
                 )}
 
                 <div className="space-y-2.5">
-                  <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono">
+                  <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
                     <Calendar className="h-3.5 w-3.5 text-slate-300" />
                     <span>{formattedDate}</span>
                     <span className="text-slate-200">•</span>
-                    <span>Admin</span>
+                    <div className="flex items-center gap-1 select-none">
+                      <WitsivaLogo className="h-4.5 w-4.5" />
+                      <span className="font-bold text-slate-600">วิทย์สิว่ะ (ผู้เขียนข่าว)</span>
+                    </div>
                   </div>
 
                   <h4 className="text-sm sm:text-base font-bold text-slate-900 leading-snug">

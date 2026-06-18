@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Send, LogIn, Sparkles, Smile, ShieldAlert, MessageCircle, User, Clock, Check, Inbox, Search, Trash2, Paperclip, Image, X, Maximize2, CheckCircle, RefreshCw } from "lucide-react";
+import { WitsivaLogo } from "./WitsivaLogo";
 import { onSnapshot, doc } from "firebase/firestore";
 import { 
   auth, 
@@ -467,7 +468,10 @@ export default function SupportPanel({ isAdmin, userProfile }: SupportPanelProps
                         key={msg.id}
                         className={`flex flex-col ${isAdminMsg ? "items-end" : "items-start"} group/msg relative`}
                       >
-                        <div className={`flex items-center gap-2 ${isAdminMsg ? "flex-row-reverse" : "flex-row"}`}>
+                        <div className={`flex items-start gap-2.5 ${isAdminMsg ? "flex-row-reverse" : "flex-row"}`}>
+                          {isAdminMsg && (
+                            <WitsivaLogo className="h-7 w-7 rounded-lg shrink-0 mt-0.5 border border-slate-100" />
+                          )}
                           <div
                             className={`max-w-[75%] rounded-2xl p-3 shadow-xxs font-sans text-xs ${
                               isAdminMsg
@@ -644,7 +648,10 @@ export default function SupportPanel({ isAdmin, userProfile }: SupportPanelProps
                         key={msg.id}
                         className={`flex flex-col ${isMe ? "items-end" : "items-start"} group/msg relative`}
                       >
-                        <div className={`flex items-center gap-2 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+                        <div className={`flex items-start gap-2.5 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+                          {!isMe && (
+                            <WitsivaLogo className="h-7 w-7 rounded-lg shrink-0 mt-0.5 border border-slate-100" />
+                          )}
                           <div
                             className={`max-w-[80%] rounded-2xl p-3.5 text-xs shadow-xxs ${
                               isMe
