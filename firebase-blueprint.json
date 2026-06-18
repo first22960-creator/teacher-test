@@ -254,9 +254,48 @@
         }
       },
       "required": ["text", "type", "userId", "createdAt"]
+    },
+    "ExamProgress": {
+      "title": "ExamProgress",
+      "description": "Dynamic stats and highest performance per exam per user.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "User ID of the progress tracker owner"
+        },
+        "examId": {
+          "type": "string",
+          "description": "ID of the exam/quiz"
+        },
+        "bestScore": {
+          "type": "integer"
+        },
+        "totalQuestions": {
+          "type": "integer"
+        },
+        "bestPercentage": {
+          "type": "integer"
+        },
+        "attemptCount": {
+          "type": "integer"
+        },
+        "completed": {
+          "type": "boolean"
+        },
+        "lastAttemptAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["userId", "examId", "bestScore", "totalQuestions", "bestPercentage", "attemptCount", "completed", "lastAttemptAt"]
     }
   },
   "firestore": {
+    "/examProgress/{progressId}": {
+      "schema": "ExamProgress",
+      "description": "User exam performance progress"
+    },
     "/categories/{categoryId}": {
       "schema": "Category",
       "description": "Quiz categories"

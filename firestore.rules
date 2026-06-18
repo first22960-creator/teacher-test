@@ -126,6 +126,16 @@ service cloud.firestore {
         && (!("imageUrl" in data) || (data.imageUrl is string && data.imageUrl.size() <= 2000000));
     }
 
+    function isValidExamProgress(data) {
+      return "userId" in data && data.userId is string && data.userId.size() <= 128
+        && "examId" in data && data.examId is string && data.examId.size() <= 128
+        && "bestScore" in data && data.bestScore is int && data.bestScore >= 0
+        && "totalQuestions" in data && data.totalQuestions is int && data.totalQuestions >= 0
+        && "bestPercentage" in data && data.bestPercentage is int && data.bestPercentage >= 0 && data.bestPercentage <= 100
+        && "attemptCount" in data && data.attemptCount is int && data.attemptCount >= 0
+        && "completed" in data && data.completed is bool;
+    }
+
     // Rules for each collection
     match /categories/{categoryId} {
       allow get, list: if isSignedIn();
@@ -169,6 +179,23 @@ service cloud.firestore {
         && incoming().completedAt == request.time;
       
       allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    match /examProgress/{progressId} {
+      allow get: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || isAdmin());
+      
+      allow create: if isSignedIn() && isValidId(progressId) && isValidExamProgress(incoming())
+        && incoming().userId == request.auth.uid
+        && (incoming().lastAttemptAt == request.time || incoming().lastAttemptAt is timestamp);
+      
+      allow update: if isSignedIn() && isValidId(progressId) && isValidExamProgress(incoming())
+        && incoming().userId == request.auth.uid
+        && incoming().userId == existing().userId
+        && incoming().examId == existing().examId
+        && (incoming().lastAttemptAt == request.time || incoming().lastAttemptAt is timestamp);
+        
       allow delete: if isAdmin();
     }
 

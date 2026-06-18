@@ -27,7 +27,7 @@ import {
   arrayUnion,
   limit
 } from "firebase/firestore";
-import { Category, Quiz, Question, Attempt } from "../types";
+import { Category, Quiz, Question, Attempt, ExamProgress } from "../types";
 import firebaseConfig from "@/firebase-applet-config.json";
 
 // Initialize Firebase
@@ -423,6 +423,50 @@ export async function submitQuizAttempt(quizId: string, quizTitle: string, score
     };
 
     await setDoc(doc(db, path, attemptId), attemptPayload);
+
+    // Update real-time ExamProgress aggregates per user/quiz
+    try {
+      const progressId = `${user.uid}_${quizId}`;
+      const progressRef = doc(db, "examProgress", progressId);
+      const progressSnap = await getDoc(progressRef);
+
+      let bestScore = Number(score);
+      let bestPercentage = Math.round((bestScore / (Number(totalQuestions) || 1)) * 100);
+      let attemptCount = 1;
+      let finalTotalQuestions = Number(totalQuestions);
+
+      if (progressSnap.exists()) {
+        const prevData = progressSnap.data();
+        const prevBestScore = Number(prevData.bestScore || 0);
+        attemptCount = Number(prevData.attemptCount || 0) + 1;
+
+        if (Number(score) > prevBestScore) {
+          bestScore = Number(score);
+          finalTotalQuestions = Number(totalQuestions);
+          bestPercentage = Math.round((bestScore / (finalTotalQuestions || 1)) * 100);
+        } else {
+          bestScore = prevBestScore;
+          finalTotalQuestions = Number(prevData.totalQuestions || totalQuestions);
+          bestPercentage = Number(prevData.bestPercentage || 0);
+        }
+      }
+
+      const progressPayload = {
+        userId: user.uid,
+        examId: quizId,
+        bestScore: Number(bestScore),
+        totalQuestions: Number(finalTotalQuestions),
+        bestPercentage: Number(bestPercentage),
+        attemptCount: Number(attemptCount),
+        completed: true,
+        lastAttemptAt: serverTimestamp()
+      };
+
+      await setDoc(progressRef, progressPayload);
+    } catch (progressErr) {
+      console.error("Failed to update exam progress details aggregate:", progressErr);
+    }
+
     return attemptId;
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, path);
@@ -709,6 +753,21 @@ export function subscribeToAttempts(callback: (attempts: Attempt[]) => void) {
       id: doc.id,
       ...doc.data()
     })) as Attempt[];
+    callback(list);
+  }, (error) => {
+    handleFirestoreError(error, OperationType.LIST, path);
+  });
+}
+
+// subscribeToExamProgress for real-time dashboard updates
+export function subscribeToExamProgress(userId: string, callback: (progress: ExamProgress[]) => void) {
+  const path = "examProgress";
+  const q = query(collection(db, path), where("userId", "==", userId));
+  return onSnapshot(q, (snapshot) => {
+    const list = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as any as ExamProgress[];
     callback(list);
   }, (error) => {
     handleFirestoreError(error, OperationType.LIST, path);

@@ -42,3 +42,14 @@ export interface Attempt {
   totalQuestions: number;
   completedAt: any; // Firestore Timestamp
 }
+
+export interface ExamProgress {
+  userId: string;
+  examId: string;
+  bestScore: number;
+  totalQuestions: number;
+  bestPercentage: number;
+  attemptCount: number;
+  completed: boolean;
+  lastAttemptAt: any; // Firestore Timestamp
+}

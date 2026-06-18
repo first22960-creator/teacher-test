@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { onAuthStateChanged, User, deleteUser } from "firebase/auth";
-import { BookOpen, HelpCircle, Shield, Key, Search, Sparkles, AlertCircle, Award, CheckCircle, Mail, Lock, UserCheck, ChevronRight, GraduationCap, Trophy, Clock, QrCode, CreditCard, Check } from "lucide-react";
+import { BookOpen, HelpCircle, Shield, Key, Search, Sparkles, AlertCircle, Award, CheckCircle, Mail, Lock, UserCheck, ChevronRight, GraduationCap, Trophy, Clock, QrCode, CreditCard, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 import { 
   auth, 
   fetchCategories, 
@@ -13,9 +14,10 @@ import {
   updateUserProfileName,
   subscribeToAttempts,
   subscribeToUserProfile,
-  logOut
+  logOut,
+  subscribeToExamProgress
 } from "./lib/firebase";
-import { Category, Quiz, Attempt } from "./types";
+import { Category, Quiz, Attempt, ExamProgress } from "./types";
 import Navbar from "./components/Navbar";
 import QuizEngine from "./components/QuizEngine";
 import AdminPanel from "./components/AdminPanel";
@@ -26,6 +28,7 @@ import PaymentModal from "./components/PaymentModal";
 import { WitsivaLogo } from "./components/WitsivaLogo";
 import HomePanel from "./components/HomePanel";
 import SupportPanel from "./components/SupportPanel";
+import { ScoreProgressWheel } from "./components/ScoreProgressWheel";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -112,6 +115,36 @@ export default function App() {
   // Account Settings and Real-time Attempts states
   const [showSettings, setShowSettings] = useState(false);
   const [attempts, setAttempts] = useState<Attempt[]>([]);
+  const [examProgressList, setExamProgressList] = useState<ExamProgress[]>([]);
+  const [expandedDashboards, setExpandedDashboards] = useState<Record<string, boolean>>({});
+
+  const toggleDashboard = (quizId: string) => {
+    setExpandedDashboards(prev => ({
+      ...prev,
+      [quizId]: !prev[quizId]
+    }));
+  };
+
+  const formatDate = (timestamp: any) => {
+    if (!timestamp) return "-";
+    let dateObj: Date;
+    if (timestamp.seconds) {
+      dateObj = new Date(timestamp.seconds * 1000);
+    } else if (timestamp.toDate) {
+      dateObj = timestamp.toDate();
+    } else if (timestamp instanceof Date) {
+      dateObj = timestamp;
+    } else {
+      dateObj = new Date(timestamp);
+    }
+    return dateObj.toLocaleDateString("th-TH", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    }) + " น.";
+  };
 
   // Custom email/password auth form state values
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
@@ -253,6 +286,20 @@ export default function App() {
     }
     const unsubscribe = subscribeToAttempts((data) => {
       setAttempts(data);
+    });
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [user]);
+
+  // Subscribe to real-time examProgress records for performance widgets
+  useEffect(() => {
+    if (!user) {
+      setExamProgressList([]);
+      return;
+    }
+    const unsubscribe = subscribeToExamProgress(user.uid, (data) => {
+      setExamProgressList(data);
     });
     return () => {
       if (unsubscribe) unsubscribe();
@@ -1036,19 +1083,119 @@ export default function App() {
                             <h3 className="mt-4 text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors leading-normal">
                               {quiz.title}
                             </h3>
-                            
-                            {isCompleted && (
-                              <div className="mt-2 text-left">
-                                <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-100 shadow-xxs">
-                                  <Check className="h-3 w-3 stroke-[2.5]" />
-                                  <span>Completed ✓</span>
-                                </span>
-                              </div>
-                            )}
 
-                            <p className="mt-2 text-xs text-slate-500 line-clamp-3 leading-relaxed">
+                            <p className="mt-2 text-xs text-slate-500 line-clamp-2 leading-relaxed">
                               {quiz.description}
                             </p>
+
+                            {(() => {
+                              const progress = examProgressList.find(p => p.examId === quiz.id);
+                              const hasAttempted = !!progress;
+                              const bestPercent = progress ? progress.bestPercentage : 0;
+                              const bestScoreVal = progress ? `${progress.bestScore}/${progress.totalQuestions}` : `0/${quiz.questionsCount}`;
+                              const attemptsCount = progress ? progress.attemptCount : 0;
+                              const lastAttemptDateStr = progress ? formatDate(progress.lastAttemptAt) : "-";
+                              const isExpanded = !!expandedDashboards[quiz.id];
+
+                              return (
+                                <div className="my-4 border-t border-slate-100/70 pt-3.5 space-y-2">
+                                  {/* Toggle Header */}
+                                  <div
+                                    onClick={() => toggleDashboard(quiz.id)}
+                                    className="flex items-center justify-between cursor-pointer select-none hover:opacity-85 transition-opacity py-1"
+                                    id={`dashboard-toggle-${quiz.id}`}
+                                  >
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+                                      📊 Performance Dashboard
+                                    </span>
+                                    <span className="text-[10px] font-bold text-indigo-650 flex items-center gap-1 transition-colors">
+                                      {isExpanded ? "▲ Collapse Performance Dashboard" : "▼ Expand Performance Dashboard"}
+                                    </span>
+                                  </div>
+
+                                  <AnimatePresence initial={false} mode="wait">
+                                    {isExpanded ? (
+                                      <motion.div
+                                        key="expanded"
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: "auto" }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        transition={{ duration: 0.2, ease: "easeInOut" }}
+                                        className="space-y-3 overflow-hidden"
+                                      >
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider font-mono">
+                                            Detailed Stats
+                                          </span>
+                                          {hasAttempted ? (
+                                            <span className="inline-flex items-center gap-0.5 bg-emerald-50 text-emerald-700 text-[9px] font-bold px-1.5 py-0.5 rounded-md border border-emerald-100 shadow-xxs">
+                                              <Check className="h-2.5 w-2.5 stroke-[3]" />
+                                              <span>Completed ✓</span>
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center gap-1 bg-slate-50 text-slate-500 text-[9px] font-bold px-1.5 py-0.5 rounded-md border border-slate-200">
+                                              <span className="h-1.5 w-1.5 rounded-full bg-slate-400 inline-block"></span>
+                                              <span>Not Attempted ○</span>
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+                                          <ScoreProgressWheel percentage={bestPercent} />
+
+                                          <div className="grid grid-cols-2 gap-2 text-[10px] w-full">
+                                            <div className="bg-slate-50/50 rounded-xl border border-slate-100 p-2 text-left shadow-3xs flex flex-col justify-center">
+                                              <span className="text-slate-400 text-[9px] font-bold">🏆 Best Score</span>
+                                              <span className="font-extrabold text-slate-855 font-mono mt-0.5 leading-none">{bestScoreVal}</span>
+                                            </div>
+                                            <div className="bg-slate-50/50 rounded-xl border border-slate-100 p-2 text-left shadow-3xs flex flex-col justify-center">
+                                              <span className="text-slate-400 text-[9px] font-bold">📊 Best Percent</span>
+                                              <span className="font-extrabold text-indigo-650 font-mono mt-0.5 leading-none">{bestPercent}%</span>
+                                            </div>
+                                            <div className="bg-slate-50/50 rounded-xl border border-slate-100 p-2 text-left shadow-3xs flex flex-col justify-center">
+                                              <span className="text-slate-400 text-[9px] font-bold">🔄 Attempts</span>
+                                              <span className="font-extrabold text-slate-855 font-mono mt-0.5 leading-none">{attemptsCount} ครั้ง</span>
+                                            </div>
+                                            <div className="bg-slate-50/50 rounded-xl border border-slate-100 p-2 text-left shadow-3xs flex flex-col justify-center">
+                                              <span className="text-slate-400 text-[9px] font-bold">📅 Last Attempt</span>
+                                              <span className="font-semibold text-slate-650 mt-0.5 truncate leading-none text-[8.5px]" title={lastAttemptDateStr}>
+                                                {lastAttemptDateStr}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </motion.div>
+                                    ) : (
+                                      <motion.div
+                                        key="collapsed"
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{ duration: 0.15 }}
+                                        onClick={() => toggleDashboard(quiz.id)}
+                                        className="flex items-center justify-between bg-slate-50/80 hover:bg-slate-100 border border-slate-200/60 rounded-xl p-2.5 text-xs text-slate-600 cursor-pointer transition-all shadow-3xs group/summary"
+                                      >
+                                        {hasAttempted ? (
+                                          <div className="flex items-center gap-2 font-bold font-mono text-[10.5px]">
+                                            <span className="text-slate-700">🏆 {bestScoreVal}</span>
+                                            <span className="text-slate-300">|</span>
+                                            <span className="text-indigo-600">📊 {bestPercent}%</span>
+                                            <span className="text-slate-300">|</span>
+                                            <span className="text-slate-500">🔄 {attemptsCount} Attempts</span>
+                                          </div>
+                                        ) : (
+                                          <span className="text-[10px] font-bold text-slate-400 font-mono flex items-center gap-1">
+                                            <span className="h-1.5 w-1.5 rounded-full bg-slate-300 inline-block"></span>
+                                            Not Attempted ○
+                                          </span>
+                                        )}
+                                        <ChevronDown className="h-3.5 w-3.5 text-slate-400 group-hover/summary:text-slate-600 transition-colors" />
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
+                                </div>
+                              );
+                            })()}
                           </div>
 
                           <div className="mt-6 border-t border-slate-50 pt-4 flex items-center justify-between">
