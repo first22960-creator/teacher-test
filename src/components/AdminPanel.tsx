@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Plus, Sparkles, BookOpen, Clock, Trash2, Edit3, Check, HelpCircle, FileText, LayoutGrid, CheckCircle, Users, ShieldCheck, Eye, EyeOff, Image, Search, Phone, Mail, UserCheck, XCircle, X } from "lucide-react";
 import { Category, Quiz, Question } from "../types";
 import { 
@@ -222,6 +222,22 @@ export default function AdminPanel({ mode, userProfile }: AdminPanelProps) {
   const [catName, setCatName] = useState("");
   const [addingCat, setAddingCat] = useState(false);
 
+  // Category search and pagination states
+  const [catSearchTerm, setCatSearchTerm] = useState("");
+  const [catCurrentPage, setCatCurrentPage] = useState(1);
+
+  const filteredCategories = useMemo(() => {
+    return categories.filter((c) => {
+      if (!catSearchTerm.trim()) return true;
+      return c.name.toLowerCase().includes(catSearchTerm.toLowerCase()) || 
+             (c.description || "").toLowerCase().includes(catSearchTerm.toLowerCase());
+    });
+  }, [categories, catSearchTerm]);
+
+  useEffect(() => {
+    setCatCurrentPage(1);
+  }, [catSearchTerm]);
+
   // Quiz creation states
   const [selectedCatId, setSelectedCatId] = useState("");
   const [quizTitle, setQuizTitle] = useState("");
@@ -231,6 +247,41 @@ export default function AdminPanel({ mode, userProfile }: AdminPanelProps) {
 
   // Quiz editing states
   const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
+
+  // Admin Exam Management search, category filter, and pagination states
+  const [adminQuizSearchTerm, setAdminQuizSearchTerm] = useState("");
+  const [adminQuizFilterCategoryId, setAdminQuizFilterCategoryId] = useState("all");
+  const [adminQuizCurrentPage, setAdminQuizCurrentPage] = useState(1);
+
+  const filteredAdminQuizzes = useMemo(() => {
+    return quizzes.filter((q) => {
+      // 1. Category Filter
+      if (adminQuizFilterCategoryId !== "all") {
+        if (q.categoryId !== adminQuizFilterCategoryId) {
+          return false;
+        }
+      }
+
+      // 2. Search Term Filter
+      if (adminQuizSearchTerm.trim()) {
+        const term = adminQuizSearchTerm.trim().toLowerCase();
+        const categoryName = categories.find(c => c.id === q.categoryId)?.name || "ทั่วไป";
+        const matchesTitle = q.title.toLowerCase().includes(term);
+        const matchesId = q.id.toLowerCase().includes(term);
+        const matchesCategory = categoryName.toLowerCase().includes(term);
+        if (!matchesTitle && !matchesId && !matchesCategory) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [quizzes, adminQuizSearchTerm, adminQuizFilterCategoryId, categories]);
+
+  // Reset pagination to page 1 on filter or search term change
+  useEffect(() => {
+    setAdminQuizCurrentPage(1);
+  }, [adminQuizSearchTerm, adminQuizFilterCategoryId]);
 
   const handleEditQuizClick = async (q: Quiz) => {
     if (!canCreateQuiz) {
@@ -656,28 +707,111 @@ export default function AdminPanel({ mode, userProfile }: AdminPanelProps) {
           <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm space-y-4">
             <h3 className="text-sm font-bold text-slate-950">หมวดหมู่ทั้งหมด ({categories.length})</h3>
             
+            {/* Search Input for categories/subjects */}
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                <Search className="h-3.5 w-3.5" />
+              </span>
+              <input
+                type="text"
+                placeholder="ค้นหาหมวดหมู่ / รายวิชา..."
+                value={catSearchTerm}
+                onChange={(e) => setCatSearchTerm(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 pl-9 pr-8 py-1.5 text-xs outline-none focus:border-indigo-500"
+              />
+              {catSearchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setCatSearchTerm("")}
+                  className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-400 hover:text-slate-650 cursor-pointer"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+
             {loading ? (
               <p className="text-xs text-slate-400">กำลังดึงข้อมูล...</p>
-            ) : categories.length === 0 ? (
-              <p className="text-xs text-slate-500 bg-slate-50 p-4 rounded-xl text-center">ยังไม่มีหมวดหมู่รายวิชา</p>
+            ) : filteredCategories.length === 0 ? (
+              <p className="text-xs text-slate-500 bg-slate-50 p-4 rounded-xl text-center">
+                {catSearchTerm ? "ไม่พบหมวดหมู่ที่ค้นหา" : "ยังไม่มีหมวดหมู่รายวิชา"}
+              </p>
             ) : (
-              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                {categories.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 hover:bg-slate-100/70 transition-colors border border-slate-100">
-                    <div className="overflow-hidden pr-3">
-                      <p className="text-xs font-bold text-slate-900 truncate">{c.name}</p>
-                      <p className="text-[10px] text-slate-500 truncate mt-0.5">{c.description}</p>
+              <>
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {(() => {
+                    const CAT_ITEMS_PER_PAGE = 10;
+                    const totalCatPages = Math.ceil(filteredCategories.length / CAT_ITEMS_PER_PAGE);
+                    const safeCatCurrentPage = Math.min(Math.max(1, catCurrentPage), totalCatPages || 1);
+                    const startCatIndex = (safeCatCurrentPage - 1) * CAT_ITEMS_PER_PAGE;
+                    const endCatIndex = startCatIndex + CAT_ITEMS_PER_PAGE;
+                    const paginatedCategories = filteredCategories.slice(startCatIndex, endCatIndex);
+
+                    return paginatedCategories.map((c) => (
+                      <div key={c.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 hover:bg-slate-100/70 transition-colors border border-slate-100 animate-fade-in">
+                        <div className="overflow-hidden pr-3">
+                          <p className="text-xs font-bold text-slate-900 truncate">{c.name}</p>
+                          <p className="text-[10px] text-slate-500 truncate mt-0.5">{c.description || "วิชาทั่วไป"}</p>
+                        </div>
+                        <button
+                          onClick={() => handleDeleteCategory(c.id)}
+                          className="text-slate-400 hover:text-rose-600 p-1 rounded transition-colors cursor-pointer"
+                          title="ลบวิชานี้"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ));
+                  })()}
+                </div>
+
+                {/* Pagination Controls */}
+                {(() => {
+                  const CAT_ITEMS_PER_PAGE = 10;
+                  const totalCatPages = Math.ceil(filteredCategories.length / CAT_ITEMS_PER_PAGE);
+                  const safeCatCurrentPage = Math.min(Math.max(1, catCurrentPage), totalCatPages || 1);
+                  if (totalCatPages <= 1) return null;
+
+                  return (
+                    <div className="flex items-center justify-center gap-1 border-t border-slate-150 pt-3 text-xs text-slate-500 font-medium select-none">
+                      <button
+                        type="button"
+                        disabled={safeCatCurrentPage === 1}
+                        onClick={() => setCatCurrentPage((p) => Math.max(1, p - 1))}
+                        className="px-2 py-1 hover:text-indigo-650 disabled:opacity-40 disabled:hover:text-slate-550 cursor-pointer transition-colors font-semibold"
+                      >
+                        &lt; Previous
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      {Array.from({ length: totalCatPages }, (_, i) => i + 1).map((p, idx, arr) => (
+                        <React.Fragment key={p}>
+                          <button
+                            type="button"
+                            onClick={() => setCatCurrentPage(p)}
+                            className={`h-6 px-1.5 focus:outline-none transition-all cursor-pointer rounded font-mono font-bold ${
+                              p === safeCatCurrentPage
+                                ? "text-indigo-600 underline scale-110"
+                                : "text-slate-600 hover:text-indigo-500"
+                            }`}
+                          >
+                            {p}
+                          </button>
+                          {idx < arr.length - 1 && <span className="text-slate-300">|</span>}
+                        </React.Fragment>
+                      ))}
+                      <span className="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        disabled={safeCatCurrentPage === totalCatPages}
+                        onClick={() => setCatCurrentPage((p) => Math.min(totalCatPages, p + 1))}
+                        className="px-2 py-1 hover:text-indigo-650 disabled:opacity-40 disabled:hover:text-slate-550 cursor-pointer transition-colors font-semibold"
+                      >
+                        Next &gt;
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleDeleteCategory(c.id)}
-                      className="text-slate-400 hover:text-rose-600 p-1 rounded transition-colors"
-                      title="ลบวิชานี้"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
+                  );
+                })()}
+              </>
             )}
           </div>
 
@@ -947,65 +1081,190 @@ export default function AdminPanel({ mode, userProfile }: AdminPanelProps) {
 
           {/* Active Quizzes Registry (Listing & Administration delete) */}
           <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-slate-950">ชุดทดสอบที่เปิดสอบอยู่ทั้งหมด ({quizzes.length} ชุด)</h3>
-            
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-100">
+              <div>
+                <h3 className="text-sm font-bold text-slate-950">ชุดทดสอบที่เปิดสอบอยู่ทั้งหมด ({filteredAdminQuizzes.length} ชุด)</h3>
+                {quizzes.length !== filteredAdminQuizzes.length && (
+                  <p className="text-[10px] text-slate-500 font-semibold mt-0.5">กรองจากทั้งหมด {quizzes.length} ชุด</p>
+                )}
+              </div>
+            </div>
+
+            {/* Category filter pills & Search bar */}
+            <div className="flex flex-col gap-3">
+              {/* Search Box */}
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                  <Search className="h-4 w-4" />
+                </span>
+                <input
+                  type="text"
+                  placeholder="🔍 ค้นหาข้อสอบตามชื่อสอบ, รหัส ID, หรือชื่อวิชา..."
+                  value={adminQuizSearchTerm}
+                  onChange={(e) => setAdminQuizSearchTerm(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 pl-9 pr-8 py-2 text-xs outline-none focus:border-indigo-500 bg-slate-50/40"
+                />
+                {adminQuizSearchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setAdminQuizSearchTerm("")}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-650 cursor-pointer"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Category Filter Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+                <button
+                  type="button"
+                  onClick={() => setAdminQuizFilterCategoryId("all")}
+                  className={`rounded-full px-3 py-1.5 text-[11px] font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                    adminQuizFilterCategoryId === "all"
+                      ? "bg-indigo-600 text-white shadow-sm font-bold animate-pulse-subtle"
+                      : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-150"
+                  }`}
+                >
+                  📂 ทั้งหมด (All)
+                </button>
+                {categories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setAdminQuizFilterCategoryId(cat.id)}
+                    className={`rounded-full px-3 py-1.5 text-[11px] font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                      adminQuizFilterCategoryId === cat.id
+                        ? "bg-indigo-600 text-white shadow-sm font-bold"
+                        : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-150"
+                    }`}
+                  >
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {quizzes.length === 0 ? (
               <p className="text-xs text-slate-400 text-center bg-slate-50 py-8 rounded-xl border border-slate-100">ยังไม่ได้รับการขึ้นทะเบียนข้อสอบ</p>
+            ) : filteredAdminQuizzes.length === 0 ? (
+              <p className="text-xs text-slate-500 text-center bg-slate-50 py-8 rounded-xl border border-slate-100 font-medium">ไม่พบชุดข้อสอบที่ตรงกับการกรอง / การค้นหา</p>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {quizzes.map((q) => {
-                  const cat = categories.find(c => c.id === q.categoryId);
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {(() => {
+                    const ADMIN_QUIZ_ITEMS_PER_PAGE = 10;
+                    const totalQuizPages = Math.ceil(filteredAdminQuizzes.length / ADMIN_QUIZ_ITEMS_PER_PAGE);
+                    const safeQuizCurrentPage = Math.min(Math.max(1, adminQuizCurrentPage), totalQuizPages || 1);
+                    const startQuizIndex = (safeQuizCurrentPage - 1) * ADMIN_QUIZ_ITEMS_PER_PAGE;
+                    const endQuizIndex = startQuizIndex + ADMIN_QUIZ_ITEMS_PER_PAGE;
+                    const paginatedQuizzes = filteredAdminQuizzes.slice(startQuizIndex, endQuizIndex);
 
-                  return (
-                    <div key={q.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 flex flex-col justify-between hover:bg-slate-100/50 transition-colors">
-                      <div>
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="rounded bg-indigo-50 px-2 py-0.5 text-[9px] font-semibold text-indigo-700">
-                            {cat ? cat.name : "ทั่วไป"}
-                          </span>
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => handleEditQuizClick(q)}
-                              className="text-slate-400 hover:text-indigo-600 p-1 rounded transition-colors cursor-pointer"
-                              title="แก้ไขชุดข้อสอบนี้"
-                            >
-                              <Edit3 className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteQuiz(q.id)}
-                              className="text-slate-400 hover:text-rose-600 p-1 rounded transition-colors cursor-pointer"
-                              title="ลบชุดสอบนี้"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                    return paginatedQuizzes.map((q) => {
+                      const cat = categories.find(c => c.id === q.categoryId);
+
+                      return (
+                        <div key={q.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 flex flex-col justify-between hover:bg-slate-100/50 transition-all shadow-[0_1px_2px_rgba(0,0,0,0.01)] hover:shadow-sm">
+                          <div>
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="rounded bg-indigo-50 px-2 py-0.5 text-[9px] font-semibold text-indigo-700">
+                                {cat ? cat.name : "ทั่วไป"}
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditQuizClick(q)}
+                                  className="text-slate-400 hover:text-indigo-600 p-1 rounded transition-colors cursor-pointer"
+                                  title="แก้ไขชุดข้อสอบนี้"
+                                >
+                                  <Edit3 className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteQuiz(q.id)}
+                                  className="text-slate-400 hover:text-rose-600 p-1 rounded transition-colors cursor-pointer"
+                                  title="ลบชุดสอบนี้"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                            <h4 className="text-xs font-bold text-slate-900 mt-2">{q.title}</h4>
+                            <p className="text-[10px] text-slate-500 mt-1 pb-2 line-clamp-2">{q.description}</p>
+                          </div>
+
+                          <div className="border-t border-slate-150 pt-2.5 flex flex-col gap-2 mt-2">
+                            <div className="flex items-center justify-between text-[10px] text-slate-400">
+                              <span className="flex items-center gap-1"><FileText className="h-3 w-3" /> {q.questionsCount} ข้อ</span>
+                              <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {q.timeLimit} นาที</span>
+                            </div>
+                            
+                            <div className="flex items-center justify-between border-t border-dashed border-slate-200/60 pt-2 mt-0.5">
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${q.isFree ? 'bg-amber-50 text-amber-700' : 'bg-indigo-50 text-indigo-700'}`}>
+                                {q.isFree ? "✨ ทดลองทำฟรี" : "🔒 เฉพาะพรีเมียม"}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleQuizFree(q.id, !!q.isFree)}
+                                className="text-[9.5px] font-bold text-indigo-600 hover:text-indigo-800 bg-white hover:bg-slate-50 border border-slate-200 px-2 py-0.5 rounded transition-all cursor-pointer"
+                              >
+                                {q.isFree ? "จำกัดเฉพาะพรีเมียม" : "เปิดให้ทดลองฟรี"}
+                              </button>
+                            </div>
                           </div>
                         </div>
-                        <h4 className="text-xs font-bold text-slate-900 mt-2">{q.title}</h4>
-                        <p className="text-[10px] text-slate-500 mt-1 pb-2 line-clamp-2">{q.description}</p>
-                      </div>
+                      );
+                    });
+                  })()}
+                </div>
 
-                      <div className="border-t border-slate-150 pt-2.5 flex flex-col gap-2 mt-2">
-                        <div className="flex items-center justify-between text-[10px] text-slate-400">
-                          <span className="flex items-center gap-1"><FileText className="h-3 w-3" /> {q.questionsCount} ข้อ</span>
-                          <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {q.timeLimit} นาที</span>
-                        </div>
-                        
-                        <div className="flex items-center justify-between border-t border-dashed border-slate-200/60 pt-2 mt-0.5">
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${q.isFree ? 'bg-amber-50 text-amber-700' : 'bg-indigo-50 text-indigo-700'}`}>
-                            {q.isFree ? "✨ ทดลองทำฟรี" : "🔒 เฉพาะพรีเมียม"}
-                          </span>
+                {/* Pagination Controls */}
+                {(() => {
+                  const ADMIN_QUIZ_ITEMS_PER_PAGE = 10;
+                  const totalQuizPages = Math.ceil(filteredAdminQuizzes.length / ADMIN_QUIZ_ITEMS_PER_PAGE);
+                  const safeQuizCurrentPage = Math.min(Math.max(1, adminQuizCurrentPage), totalQuizPages || 1);
+                  if (totalQuizPages <= 1) return null;
+
+                  return (
+                    <div className="flex items-center justify-center gap-1 border-t border-slate-150 pt-5 text-xs text-slate-500 font-medium select-none">
+                      <button
+                        type="button"
+                        disabled={safeQuizCurrentPage === 1}
+                        onClick={() => setAdminQuizCurrentPage((p) => Math.max(1, p - 1))}
+                        className="px-2.5 py-1.5 hover:text-indigo-650 disabled:opacity-40 disabled:hover:text-slate-550 cursor-pointer transition-colors font-semibold"
+                      >
+                        &lt; Previous
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      {Array.from({ length: totalQuizPages }, (_, i) => i + 1).map((p, idx, arr) => (
+                        <React.Fragment key={p}>
                           <button
-                            onClick={() => handleToggleQuizFree(q.id, !!q.isFree)}
-                            className="text-[9.5px] font-bold text-indigo-600 hover:text-indigo-800 bg-white hover:bg-slate-50 border border-slate-200 px-2 py-0.5 rounded transition-all cursor-pointer"
+                            type="button"
+                            onClick={() => setAdminQuizCurrentPage(p)}
+                            className={`h-7 px-2 focus:outline-none transition-all cursor-pointer rounded font-mono font-bold ${
+                              p === safeQuizCurrentPage
+                                ? "text-indigo-600 underline scale-110"
+                                : "text-slate-600 hover:text-indigo-500"
+                            }`}
                           >
-                            {q.isFree ? "จำกัดเฉพาะพรีเมียม" : "เปิดให้ทดลองฟรี"}
+                            {p}
                           </button>
-                        </div>
-                      </div>
+                          {idx < arr.length - 1 && <span className="text-slate-300">|</span>}
+                        </React.Fragment>
+                      ))}
+                      <span className="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        disabled={safeQuizCurrentPage === totalQuizPages}
+                        onClick={() => setAdminQuizCurrentPage((p) => Math.min(totalQuizPages, p + 1))}
+                        className="px-2.5 py-1.5 hover:text-indigo-650 disabled:opacity-40 disabled:hover:text-slate-550 cursor-pointer transition-colors font-semibold"
+                      >
+                        Next &gt;
+                      </button>
                     </div>
                   );
-                })}
-              </div>
+                })()}
+              </>
             )}
           </div>
 

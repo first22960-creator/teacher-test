@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { onAuthStateChanged, User, deleteUser } from "firebase/auth";
 import { BookOpen, HelpCircle, Shield, Key, Search, Sparkles, AlertCircle, Award, CheckCircle, Mail, Lock, UserCheck, ChevronRight, GraduationCap, Trophy, Clock, QrCode, CreditCard, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -475,13 +475,74 @@ export default function App() {
   }, [user, currentTab]);
 
   // Filters quizzes based on category selection pills and search inputs
-  const filteredQuizzes = quizzes.filter((q) => {
-    const matchesCategory = selectedCatId === "all" || q.categoryId === selectedCatId;
-    const matchesSearch =
-      q.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      q.description.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  const filteredQuizzes = useMemo(() => {
+    return quizzes.filter((q) => {
+      let matchesCategory = false;
+      if (selectedCatId === "all") {
+        matchesCategory = true;
+      } else if (selectedCatId === "free") {
+        matchesCategory = q.isFree === true;
+      } else {
+        matchesCategory = q.categoryId === selectedCatId;
+      }
+
+      const matchesSearch =
+        searchTerm.trim() === "" ||
+        q.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        q.description.toLowerCase().includes(searchTerm.toLowerCase());
+
+      return matchesCategory && matchesSearch;
+    });
+  }, [quizzes, selectedCatId, searchTerm]);
+
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCatId]);
+
+  const ITEMS_PER_PAGE = 10;
+
+  const getCategoryEmoji = (categoryName: string) => {
+    const name = categoryName.toLowerCase();
+    if (name.includes("ครู") || name.includes("สอน") || name.includes("teaching")) return "📚";
+    if (name.includes("อังกฤษ") || name.includes("english") || name.includes("ภาษา")) return "🗣️";
+    if (name.includes("กฎหมาย") || name.includes("law")) return "⚖️";
+    if (name.includes("คณิต") || name.includes("math")) return "🧮";
+    if (name.includes("ไทย") || name.includes("thai")) return "📕";
+    if (name.includes("คอม") || name.includes("tech")) return "💻";
+    return "📝";
+  };
+
+  const activeCategoryInfo = useMemo(() => {
+    if (selectedCatId === "all") {
+      return {
+        name: "ข้อสอบทั้งหมด (All Exams)",
+        emoji: "📝",
+        description: "ตะลุยแบบทดสอบเตรียมความพร้อมสอบทุกหมวดหมู่"
+      };
+    }
+    if (selectedCatId === "free") {
+      return {
+        name: "ข้อสอบฟรีความจริงใจ (Free Exams)",
+        emoji: "🆓",
+        description: "แบบทดสอบทดลองทำฟรี สำหรับผู้เริ่มใช้งานและสมาชิกทั่วไป"
+      };
+    }
+    const cat = categories.find(c => c.id === selectedCatId);
+    if (cat) {
+      return {
+        name: cat.name,
+        emoji: getCategoryEmoji(cat.name),
+        description: cat.description || `วิชา${cat.name}`
+      };
+    }
+    return {
+      name: "ทั่วไป",
+      emoji: "📝",
+      description: "แบบทดสอบทั่วไป"
+    };
+  }, [selectedCatId, categories]);
 
   if (authLoading) {
     return (
@@ -1018,25 +1079,26 @@ export default function App() {
                 <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
                   <button
                     onClick={() => setSelectedCatId("all")}
-                    className={`rounded-full px-4 py-1.5 text-xs font-medium transition-all cursor-pointer ${
+                    className={`rounded-full px-4 py-1.5 text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                       selectedCatId === "all"
-                        ? "bg-slate-900 text-white shadow-sm"
+                        ? "bg-slate-900 text-white shadow-sm font-bold"
                         : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
                     }`}
                   >
-                    ทั้งหมด
+                    📝 ทั้งหมด (All)
                   </button>
+
                   {categories.map((cat) => (
                     <button
                       key={cat.id}
                       onClick={() => setSelectedCatId(cat.id)}
-                      className={`rounded-full px-4 py-1.5 text-xs font-medium whitespace-nowrap transition-all cursor-pointer ${
+                      className={`rounded-full px-4 py-1.5 text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                         selectedCatId === cat.id
-                          ? "bg-indigo-600 text-white shadow-sm"
+                          ? "bg-indigo-600 text-white shadow-sm font-bold"
                           : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
                       }`}
                     >
-                      {cat.name}
+                      {getCategoryEmoji(cat.name)} {cat.name}
                     </button>
                   ))}
                 </div>
@@ -1054,181 +1116,282 @@ export default function App() {
                     <p className="text-xs text-slate-500 mt-1">ยังไม่มีผู้ออกข้อสอบในวิชานี้ หรือลองใช้คำค้นหาอื่น</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                    {filteredQuizzes.map((quiz) => {
-                      const catName = categories.find(c => c.id === quiz.categoryId)?.name || "ทั่วไป";
-                      const isLocked = userProfile?.approved === false && !isAdmin && !quiz.isFree;
-                      const isCompleted = attempts.some(a => a.quizId === quiz.id && a.userId === user?.uid);
+                  <div className="space-y-6">
+                    {/* Active Category Heading Row */}
+                    <div className="flex items-center justify-between border-b border-slate-150 pb-3">
+                      <div className="flex items-center gap-2">
 
-                      return (
-                        <div
-                          key={quiz.id}
-                          className="flex flex-col justify-between rounded-2xl border border-slate-100 bg-white p-5 shadow-sm hover:shadow-md transition-all group"
-                        >
-                          <div>
-                            <div className="flex items-center justify-between">
-                              <span className="inline-flex items-center rounded-md bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
-                                {catName}
-                              </span>
-                              <div className="flex items-center gap-1.5">
-                                {quiz.isFree && (
-                                  <span className="bg-amber-100 text-amber-900 text-[9px] font-extrabold px-1.5 py-0.5 rounded font-mono animate-pulse">
-                                    FREE TRIAL
+                        <div>
+                          <h3 className="text-base font-extrabold text-slate-900 leading-none">
+                            {activeCategoryInfo.name}
+                          </h3>
+                          {activeCategoryInfo.description && (
+                            <p className="text-[11px] text-slate-400 leading-normal mt-1 text-xs">
+                              {activeCategoryInfo.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <span className="text-xs font-mono font-bold text-indigo-650 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full whitespace-nowrap shadow-3xs">
+                        มีทั้งหมด {filteredQuizzes.length} ชุด
+                      </span>
+                    </div>
+
+                    {/* Quizzes Grid for the Active Selection */}
+                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                      {(() => {
+                        const totalPages = Math.ceil(filteredQuizzes.length / ITEMS_PER_PAGE);
+                        const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages || 1);
+                        const startIndex = (safeCurrentPage - 1) * ITEMS_PER_PAGE;
+                        const endIndex = startIndex + ITEMS_PER_PAGE;
+                        const paginatedQuizzes = filteredQuizzes.slice(startIndex, endIndex);
+
+                        return paginatedQuizzes.map((quiz) => {
+                          const catName = categories.find(c => c.id === quiz.categoryId)?.name || "ทั่วไป";
+                          const isLocked = userProfile?.approved === false && !isAdmin && !quiz.isFree;
+                          const isCompleted = attempts.some(a => a.quizId === quiz.id && a.userId === user?.uid);
+
+                          return (
+                            <div
+                              key={quiz.id}
+                              className="flex flex-col justify-between rounded-2xl border border-slate-100 bg-white p-5 shadow-sm hover:shadow-md transition-all group"
+                            >
+                              <div>
+                                <div className="flex items-center justify-between">
+                                  <span className="inline-flex items-center rounded-md bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+                                    {catName}
                                   </span>
+                                  <div className="flex items-center gap-1.5">
+                                    {quiz.isFree && (
+                                      <span className="bg-amber-100 text-amber-900 text-[9px] font-extrabold px-1.5 py-0.5 rounded font-mono animate-pulse">
+                                        FREE TRIAL
+                                      </span>
+                                    )}
+                                    <span className="text-[10px] text-slate-400 font-mono">ID: {quiz.id.slice(0, 5).toUpperCase()}</span>
+                                  </div>
+                                </div>
+
+                                <h3 className="mt-4 text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors leading-normal">
+                                  {quiz.title}
+                                </h3>
+
+                                <p className="mt-2 text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                                  {quiz.description}
+                                </p>
+
+                                {(() => {
+                                  const progress = examProgressList.find(p => p.examId === quiz.id);
+                                  const hasAttempted = !!progress;
+                                  const bestPercent = progress ? progress.bestPercentage : 0;
+                                  const bestScoreVal = progress ? `${progress.bestScore}/${progress.totalQuestions}` : `0/${quiz.questionsCount}`;
+                                  const attemptsCount = progress ? progress.attemptCount : 0;
+                                  const lastAttemptDateStr = progress ? formatDate(progress.lastAttemptAt) : "-";
+                                  const isExpanded = !!expandedDashboards[quiz.id];
+
+                                  return (
+                                    <div className="my-4 border-t border-slate-100/70 pt-3.5 space-y-2">
+                                      {/* Toggle Header */}
+                                      <div
+                                        onClick={() => toggleDashboard(quiz.id)}
+                                        className="flex items-center justify-between cursor-pointer select-none hover:opacity-85 transition-opacity py-1"
+                                        id={`dashboard-toggle-${quiz.id}`}
+                                      >
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+                                          📊 Performance Dashboard
+                                        </span>
+                                        <span className="text-[10px] font-bold text-indigo-650 flex items-center gap-1 transition-colors">
+                                          {isExpanded ? "▲ Collapse Performance Dashboard" : "▼ Expand Performance Dashboard"}
+                                        </span>
+                                      </div>
+
+                                      <AnimatePresence initial={false} mode="wait">
+                                        {isExpanded ? (
+                                          <motion.div
+                                            key="expanded"
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: "auto" }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            transition={{ duration: 0.2, ease: "easeInOut" }}
+                                            className="space-y-3 overflow-hidden"
+                                          >
+                                            <div className="flex items-center justify-between">
+                                              <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider font-mono">
+                                                Detailed Stats
+                                              </span>
+                                              {hasAttempted ? (
+                                                <span className="inline-flex items-center gap-0.5 bg-emerald-50 text-emerald-700 text-[9px] font-bold px-1.5 py-0.5 rounded-md border border-emerald-100 shadow-xxs">
+                                                  <Check className="h-2.5 w-2.5 stroke-[3]" />
+                                                  <span>Completed ✓</span>
+                                                </span>
+                                              ) : (
+                                                <span className="inline-flex items-center gap-1 bg-slate-50 text-slate-500 text-[9px] font-bold px-1.5 py-0.5 rounded-md border border-slate-200">
+                                                  <span className="h-1.5 w-1.5 rounded-full bg-slate-400 inline-block"></span>
+                                                  <span>Not Attempted ○</span>
+                                                </span>
+                                              )}
+                                            </div>
+
+                                            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+                                              <ScoreProgressWheel percentage={bestPercent} />
+
+                                              <div className="grid grid-cols-2 gap-2 text-[10px] w-full">
+                                                <div className="bg-slate-50/50 rounded-xl border border-slate-100 p-2 text-left shadow-3xs flex flex-col justify-center">
+                                                  <span className="text-slate-400 text-[9px] font-bold">🏆 Best Score</span>
+                                                  <span className="font-extrabold text-slate-855 font-mono mt-0.5 leading-none">{bestScoreVal}</span>
+                                                </div>
+                                                <div className="bg-slate-50/50 rounded-xl border border-slate-100 p-2 text-left shadow-3xs flex flex-col justify-center">
+                                                  <span className="text-slate-400 text-[9px] font-bold">📊 Best Percent</span>
+                                                  <span className="font-extrabold text-indigo-650 font-mono mt-0.5 leading-none">{bestPercent}%</span>
+                                                </div>
+                                                <div className="bg-slate-50/50 rounded-xl border border-slate-100 p-2 text-left shadow-3xs flex flex-col justify-center">
+                                                  <span className="text-slate-400 text-[9px] font-bold">🔄 Attempts</span>
+                                                  <span className="font-extrabold text-slate-855 font-mono mt-0.5 leading-none">{attemptsCount} ครั้ง</span>
+                                                </div>
+                                                <div className="bg-slate-50/50 rounded-xl border border-slate-100 p-2 text-left shadow-3xs flex flex-col justify-center">
+                                                  <span className="text-slate-400 text-[9px] font-bold">📅 Last Attempt</span>
+                                                  <span className="font-semibold text-slate-650 mt-0.5 truncate leading-none text-[8.5px]" title={lastAttemptDateStr}>
+                                                    {lastAttemptDateStr}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </motion.div>
+                                        ) : (
+                                          <motion.div
+                                            key="collapsed"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            transition={{ duration: 0.15 }}
+                                            onClick={() => toggleDashboard(quiz.id)}
+                                            className="flex items-center justify-between bg-slate-50/80 hover:bg-slate-100 border border-slate-200/60 rounded-xl p-2.5 text-xs text-slate-600 cursor-pointer transition-all shadow-3xs group/summary"
+                                          >
+                                            {hasAttempted ? (
+                                              <div className="flex items-center gap-2 font-bold font-mono text-[10.5px]">
+                                                <span className="text-slate-700">🏆 {bestScoreVal}</span>
+                                                <span className="text-slate-300">|</span>
+                                                <span className="text-indigo-600">📊 {bestPercent}%</span>
+                                                <span className="text-slate-300">|</span>
+                                                <span className="text-slate-500">🔄 {attemptsCount} Attempts</span>
+                                              </div>
+                                            ) : (
+                                              <span className="text-[10px] font-bold text-slate-400 font-mono flex items-center gap-1">
+                                                <span className="h-1.5 w-1.5 rounded-full bg-slate-300 inline-block font-mono"></span>
+                                                Not Attempted ○
+                                              </span>
+                                            )}
+                                            <ChevronDown className="h-3.5 w-3.5 text-slate-400 group-hover/summary:text-slate-600 transition-colors" />
+                                          </motion.div>
+                                        )}
+                                      </AnimatePresence>
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+
+                              <div className="mt-6 border-t border-slate-50 pt-4 flex items-center justify-between">
+                                <div className="flex items-center gap-4 text-[11px] text-slate-400 font-semibold">
+                                  <span className="flex items-center gap-1">📋 {quiz.questionsCount} ข้อ</span>
+                                  {quiz.timeLimit > 0 && <span className="flex items-center gap-1">⌚ {quiz.timeLimit} นาที</span>}
+                                </div>
+                                
+                                {isLocked ? (
+                                  <button
+                                    onClick={() => setShowPayment(true)}
+                                    className="rounded-xl bg-slate-150 border border-slate-200 px-3.5 py-1.5 text-xs font-bold text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                                    title="แบบฝึกหัดเฉพาะกลุ่มสมาชิกพรีเมียม สนใจแนบหลักฐานผู้ชำระเงินที่หน้าหลัก"
+                                  >
+                                    <Lock className="h-3.5 w-3.5 text-slate-400" />
+                                    <span>ข้อสอบพรีเมียม</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    id={`start-quiz-${quiz.id}`}
+                                    onClick={() => {
+                                      setActiveQuiz(quiz);
+                                      setIsTakingQuiz(true);
+                                    }}
+                                    className="rounded-xl bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-indigo-600 shadow-sm transition-all cursor-pointer whitespace-nowrap"
+                                  >
+                                    {quiz.isFree ? "ทำข้อสอบฟรี →" : "เริ่มทำข้อสอบ"}
+                                  </button>
                                 )}
-                                <span className="text-[10px] text-slate-400 font-mono">ID: {quiz.id.slice(0, 5).toUpperCase()}</span>
                               </div>
                             </div>
+                          );
+                        });
+                      })()}
+                    </div>
 
-                            <h3 className="mt-4 text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors leading-normal">
-                              {quiz.title}
-                            </h3>
+                    {/* Single Main Pagination Controls below active list (Requirement 2 & 5) */}
+                    {(() => {
+                      const totalPages = Math.ceil(filteredQuizzes.length / ITEMS_PER_PAGE);
+                      const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages || 1);
+                      if (totalPages <= 1) return null;
 
-                            <p className="mt-2 text-xs text-slate-500 line-clamp-2 leading-relaxed">
-                              {quiz.description}
-                            </p>
+                      return (
+                        <div className="mt-8 flex flex-wrap items-center justify-center gap-2 border-t border-slate-100 pt-6">
+                          <button
+                            disabled={safeCurrentPage === 1}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setCurrentPage((p) => Math.max(1, p - 1));
+                            }}
+                            className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-3xs transition-all hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                          >
+                            &lt; ย้อนกลับ (Prev)
+                          </button>
+                          
+                          <div className="flex items-center gap-1 mx-1 sm:mx-2">
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
+                              const isSelected = p === safeCurrentPage;
+                              let shouldShow = true;
+                              if (totalPages > 5) {
+                                shouldShow = p === 1 || p === totalPages || Math.abs(p - safeCurrentPage) <= 1;
+                              }
 
-                            {(() => {
-                              const progress = examProgressList.find(p => p.examId === quiz.id);
-                              const hasAttempted = !!progress;
-                              const bestPercent = progress ? progress.bestPercentage : 0;
-                              const bestScoreVal = progress ? `${progress.bestScore}/${progress.totalQuestions}` : `0/${quiz.questionsCount}`;
-                              const attemptsCount = progress ? progress.attemptCount : 0;
-                              const lastAttemptDateStr = progress ? formatDate(progress.lastAttemptAt) : "-";
-                              const isExpanded = !!expandedDashboards[quiz.id];
+                              if (!shouldShow) {
+                                if (p === 2 && safeCurrentPage > 3) {
+                                  return <span key="el-1" className="text-slate-400 text-xs px-1 font-mono">...</span>;
+                                }
+                                if (p === totalPages - 1 && safeCurrentPage < totalPages - 2) {
+                                  return <span key="el-2" className="text-slate-400 text-xs px-1 font-mono">...</span>;
+                                }
+                                return null;
+                              }
 
                               return (
-                                <div className="my-4 border-t border-slate-100/70 pt-3.5 space-y-2">
-                                  {/* Toggle Header */}
-                                  <div
-                                    onClick={() => toggleDashboard(quiz.id)}
-                                    className="flex items-center justify-between cursor-pointer select-none hover:opacity-85 transition-opacity py-1"
-                                    id={`dashboard-toggle-${quiz.id}`}
-                                  >
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
-                                      📊 Performance Dashboard
-                                    </span>
-                                    <span className="text-[10px] font-bold text-indigo-650 flex items-center gap-1 transition-colors">
-                                      {isExpanded ? "▲ Collapse Performance Dashboard" : "▼ Expand Performance Dashboard"}
-                                    </span>
-                                  </div>
-
-                                  <AnimatePresence initial={false} mode="wait">
-                                    {isExpanded ? (
-                                      <motion.div
-                                        key="expanded"
-                                        initial={{ opacity: 0, height: 0 }}
-                                        animate={{ opacity: 1, height: "auto" }}
-                                        exit={{ opacity: 0, height: 0 }}
-                                        transition={{ duration: 0.2, ease: "easeInOut" }}
-                                        className="space-y-3 overflow-hidden"
-                                      >
-                                        <div className="flex items-center justify-between">
-                                          <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider font-mono">
-                                            Detailed Stats
-                                          </span>
-                                          {hasAttempted ? (
-                                            <span className="inline-flex items-center gap-0.5 bg-emerald-50 text-emerald-700 text-[9px] font-bold px-1.5 py-0.5 rounded-md border border-emerald-100 shadow-xxs">
-                                              <Check className="h-2.5 w-2.5 stroke-[3]" />
-                                              <span>Completed ✓</span>
-                                            </span>
-                                          ) : (
-                                            <span className="inline-flex items-center gap-1 bg-slate-50 text-slate-500 text-[9px] font-bold px-1.5 py-0.5 rounded-md border border-slate-200">
-                                              <span className="h-1.5 w-1.5 rounded-full bg-slate-400 inline-block"></span>
-                                              <span>Not Attempted ○</span>
-                                            </span>
-                                          )}
-                                        </div>
-
-                                        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-                                          <ScoreProgressWheel percentage={bestPercent} />
-
-                                          <div className="grid grid-cols-2 gap-2 text-[10px] w-full">
-                                            <div className="bg-slate-50/50 rounded-xl border border-slate-100 p-2 text-left shadow-3xs flex flex-col justify-center">
-                                              <span className="text-slate-400 text-[9px] font-bold">🏆 Best Score</span>
-                                              <span className="font-extrabold text-slate-855 font-mono mt-0.5 leading-none">{bestScoreVal}</span>
-                                            </div>
-                                            <div className="bg-slate-50/50 rounded-xl border border-slate-100 p-2 text-left shadow-3xs flex flex-col justify-center">
-                                              <span className="text-slate-400 text-[9px] font-bold">📊 Best Percent</span>
-                                              <span className="font-extrabold text-indigo-650 font-mono mt-0.5 leading-none">{bestPercent}%</span>
-                                            </div>
-                                            <div className="bg-slate-50/50 rounded-xl border border-slate-100 p-2 text-left shadow-3xs flex flex-col justify-center">
-                                              <span className="text-slate-400 text-[9px] font-bold">🔄 Attempts</span>
-                                              <span className="font-extrabold text-slate-855 font-mono mt-0.5 leading-none">{attemptsCount} ครั้ง</span>
-                                            </div>
-                                            <div className="bg-slate-50/50 rounded-xl border border-slate-100 p-2 text-left shadow-3xs flex flex-col justify-center">
-                                              <span className="text-slate-400 text-[9px] font-bold">📅 Last Attempt</span>
-                                              <span className="font-semibold text-slate-650 mt-0.5 truncate leading-none text-[8.5px]" title={lastAttemptDateStr}>
-                                                {lastAttemptDateStr}
-                                              </span>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </motion.div>
-                                    ) : (
-                                      <motion.div
-                                        key="collapsed"
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        exit={{ opacity: 0 }}
-                                        transition={{ duration: 0.15 }}
-                                        onClick={() => toggleDashboard(quiz.id)}
-                                        className="flex items-center justify-between bg-slate-50/80 hover:bg-slate-100 border border-slate-200/60 rounded-xl p-2.5 text-xs text-slate-600 cursor-pointer transition-all shadow-3xs group/summary"
-                                      >
-                                        {hasAttempted ? (
-                                          <div className="flex items-center gap-2 font-bold font-mono text-[10.5px]">
-                                            <span className="text-slate-700">🏆 {bestScoreVal}</span>
-                                            <span className="text-slate-300">|</span>
-                                            <span className="text-indigo-600">📊 {bestPercent}%</span>
-                                            <span className="text-slate-300">|</span>
-                                            <span className="text-slate-500">🔄 {attemptsCount} Attempts</span>
-                                          </div>
-                                        ) : (
-                                          <span className="text-[10px] font-bold text-slate-400 font-mono flex items-center gap-1">
-                                            <span className="h-1.5 w-1.5 rounded-full bg-slate-300 inline-block"></span>
-                                            Not Attempted ○
-                                          </span>
-                                        )}
-                                        <ChevronDown className="h-3.5 w-3.5 text-slate-400 group-hover/summary:text-slate-600 transition-colors" />
-                                      </motion.div>
-                                    )}
-                                  </AnimatePresence>
-                                </div>
+                                <button
+                                  key={p}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    setCurrentPage(p);
+                                  }}
+                                  className={`rounded-lg px-2.5 py-1 text-xs font-bold font-mono transition-all cursor-pointer ${
+                                    isSelected
+                                      ? "bg-indigo-600 text-white shadow-xs"
+                                      : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                                  }`}
+                                >
+                                  {p}
+                                </button>
                               );
-                            })()}
+                            })}
                           </div>
 
-                          <div className="mt-6 border-t border-slate-50 pt-4 flex items-center justify-between">
-                            <div className="flex items-center gap-4 text-[11px] text-slate-400 font-medium font-semibold">
-                              <span className="flex items-center gap-1">📋 {quiz.questionsCount} ข้อ</span>
-                              {quiz.timeLimit > 0 && <span className="flex items-center gap-1">⌚ {quiz.timeLimit} นาที</span>}
-                            </div>
-                            
-                            {isLocked ? (
-                              <button
-                                onClick={() => setShowPayment(true)}
-                                className="rounded-xl bg-slate-150 border border-slate-200 px-3.5 py-1.5 text-xs font-bold text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
-                                title="แบบฝึกหัดเฉพาะกลุ่มสมาชิกพรีเมียม สนใจแนบหลักฐานผู้ชำระเงินที่หน้าหลัก"
-                              >
-                                <Lock className="h-3.5 w-3.5 text-slate-400" />
-                                <span>ข้อสอบพรีเมียม</span>
-                              </button>
-                            ) : (
-                              <button
-                                id={`start-quiz-${quiz.id}`}
-                                onClick={() => {
-                                  setActiveQuiz(quiz);
-                                  setIsTakingQuiz(true);
-                                }}
-                                className="rounded-xl bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-indigo-600 shadow-sm transition-all cursor-pointer whitespace-nowrap"
-                              >
-                                {quiz.isFree ? "ทำข้อสอบฟรี →" : "เริ่มทำข้อสอบ"}
-                              </button>
-                            )}
-                          </div>
+                          <button
+                            disabled={safeCurrentPage === totalPages}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setCurrentPage((p) => Math.min(totalPages, p + 1));
+                            }}
+                            className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-3xs transition-all hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                          >
+                            ถัดไป (Next) &gt;
+                          </button>
                         </div>
                       );
-                    })}
+                    })()}
                   </div>
                 )}
 
